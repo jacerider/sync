@@ -1,0 +1,5 @@
+sync.sync:
+  route_name: sync.sync
+  parent: 'system.admin'
+  title: Sync
+  description: 'Sync resource data and view statistics.'

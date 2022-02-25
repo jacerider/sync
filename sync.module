@@ -1,0 +1,155 @@
+<?php
+
+/**
+ * @file
+ * Contains sync.module.
+ */
+
+use Drupal\Core\Routing\RouteMatchInterface;
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\EntityFormInterface;
+use Drupal\Core\Entity\FieldableEntityInterface;
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\sync\Plugin\Field\FieldWidget\ReadonlyFieldWidget;
+use Drupal\views\Plugin\views\query\QueryPluginBase;
+use Drupal\views\ViewExecutable;
+
+/**
+ * Implements hook_help().
+ */
+function sync_help($route_name, RouteMatchInterface $route_match) {
+  switch ($route_name) {
+    // Main module help for the sync module.
+    case 'help.page.sync':
+      $output = '';
+      $output .= '<h3>' . t('About') . '</h3>';
+      $output .= '<p>' . t('Data migration suite.') . '</p>';
+      return $output;
+
+    default:
+  }
+}
+
+/**
+ * Implements hook_cron().
+ */
+function sync_cron() {
+  $manager = \Drupal::service('plugin.manager.sync_resource');
+  foreach ($manager->getForCron() as $instance) {
+    /* @var \Drupal\sync\Plugin\SyncResourceInterface $instance */
+    $instance->build();
+  }
+}
+
+/**
+ * Implements hook_entity_delete().
+ */
+function sync_entity_delete(EntityInterface $entity) {
+  \Drupal::service('sync.storage')->deleteByProperties([
+    'entity_id' => $entity->id(),
+    'entity_type' => $entity->getEntityTypeId(),
+  ]);
+}
+
+/**
+ * Implements hook_entity_insert().
+ */
+function sync_entity_insert(EntityInterface $entity) {
+  sync_entity_update($entity);
+}
+
+/**
+ * Implements hook_entity_update().
+ */
+function sync_entity_update(EntityInterface $entity) {
+  if (isset($entity->__sync_id)) {
+    \Drupal::service('sync.storage')->saveEntity($entity);
+  }
+}
+
+/**
+ * Implements hook_field_widget_info_alter().
+ */
+function sync_field_widget_info_alter(array &$info) {
+  // Let the readonly field widget be useable on all field types.
+  $formatters = \Drupal::service('plugin.manager.field.formatter')->getDefinitions();
+  $field_types = [];
+  foreach ($formatters as $formatter) {
+    $field_types = array_merge($field_types, $formatter['field_types']);
+  }
+  $info['sync_readonly']['field_types'] = array_unique($field_types);
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function sync_form_alter(&$form, FormStateInterface $form_state, $form_id) {
+  // Check that this is an entity form.
+  $form_object = $form_state->getFormObject();
+  if ($form_object instanceof EntityFormInterface) {
+    $entity = $form_object->getEntity();
+    // Set access to readonly widget items based on their view access.
+    $storage = $form_state->getStorage();
+    if ($entity instanceof FieldableEntityInterface && isset($storage['form_display'])) {
+      /** @var \Drupal\Core\Entity\Display\EntityFormDisplayInterface $form_display */
+      $form_display = $storage['form_display'];
+    }
+    else {
+      return;
+    }
+    foreach ($form_display->getComponents() as $name => $options) {
+      $widget = $form_display->getRenderer($name);
+      if ($widget instanceof ReadonlyFieldWidget) {
+        $items = $entity->get($name);
+        $items->filterEmptyItems();
+        $form[$name]['#access'] = $items->access('view');
+      }
+    }
+  }
+
+}
+
+/**
+ * Implements hook_queue_info_alter().
+ */
+function sync_queue_info_alter(&$definitions) {
+  foreach (\Drupal::service('plugin.manager.sync_resource')->getDefinitions() as $key => $definition) {
+    $definitions['sync_' . $key] = [
+      'id' => 'sync_' . $key,
+      'title' => $definition['label'],
+      'cron' => [
+        'time' => 180,
+      ],
+      'class' => 'Drupal\sync\Plugin\QueueWorker\Sync',
+      'provider' => 'sync',
+    ];
+  }
+}
+
+/**
+ * Implements hook_views_query_alter().
+ */
+function sync_views_query_alter(ViewExecutable $view, QueryPluginBase $query) {
+  if ($view->id() == 'sync_watchdog' && !empty($view->args[1])) {
+    // Show only logs since start of most recent run.
+    $query->addWhere('', 'watchdog.timestamp', $view->args[1], '>');
+  }
+}
+
+/**
+* Implements hook_mail().
+*/
+function sync_mail($key, &$message, $params) {
+  $options = [
+    'langcode' => $message['langcode'],
+  ];
+
+  switch ($key) {
+    case 'end_fail':
+      $message['headers']['Content-Type'] = 'text/html; charset=UTF-8; format=flowed';
+      $message['from'] = \Drupal::config('system.site')->get('mail');
+      $message['subject'] = $params['%subject'];
+      $message['body'][] = $params['%message'];
+      break;
+  }
+ }

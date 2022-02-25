@@ -1,0 +1,26 @@
+services:
+  plugin.manager.sync_fetcher:
+    class: Drupal\sync\Plugin\SyncFetcherManager
+    parent: default_plugin_manager
+  plugin.manager.sync_parser:
+    class: Drupal\sync\Plugin\SyncParserManager
+    parent: default_plugin_manager
+  plugin.manager.sync_client:
+    class: Drupal\sync\SyncClientManager
+    arguments: ['@module_handler', '@cache.discovery']
+  plugin.manager.sync_resource:
+    class: Drupal\sync\Plugin\SyncResourceManager
+    parent: default_plugin_manager
+  sync.storage:
+    class: Drupal\sync\SyncStorage
+    arguments: ['@database', '@entity_type.manager']
+  sync.entity_provider:
+    class: Drupal\sync\SyncEntityProvider
+    arguments: ['@sync.storage', '@entity_type.manager', '@current_user']
+  sync.resource_access:
+    class: Drupal\sync\SyncResourceAccess
+    arguments: ['@plugin.manager.sync_resource']
+    tags:
+      - { name: access_check, applies_to: _sync_resource_access }
+  sync.memory_cache:
+    class: Drupal\Core\Cache\MemoryCache\MemoryCache

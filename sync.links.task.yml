@@ -1,0 +1,10 @@
+sync.sync:
+  title: 'Resources'
+  route_name: sync.sync
+  base_route: sync.sync
+  weight: -10
+sync.settings:
+  title: 'Settings'
+  route_name: sync.settings
+  base_route: sync.sync
+  weight: 0

@@ -1,0 +1,6 @@
+services:
+  sync.commands:
+    class: Drupal\sync\Commands\SyncCommands
+    arguments: ['@plugin.manager.sync_resource', '@queue']
+    tags:
+      - { name: drush.command }

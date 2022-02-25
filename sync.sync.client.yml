@@ -1,0 +1,5 @@
+sync_remote_file:
+  fetcher: http
+  fetcher_settings:
+    as_content: false
+  parser: stream

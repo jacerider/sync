@@ -1,0 +1,18 @@
+'access sync overview':
+  title: 'Access sync overview page'
+  description: 'Get an overview of all sync resources.'
+'manage sync':
+  title: 'Manage sync'
+  restrict access: true
+'sync run all':
+  title: 'Allow running all sync resources'
+'sync run scheduled':
+  title: 'Allow running scheduled sync resources'
+'sync reset':
+  title: 'Allow sync reset'
+'sync debug':
+  title: 'Allow sync debug'
+'sync view all':
+  title: 'Allow viewing all the sync resources.'
+permission_callbacks:
+  - \Drupal\sync\SyncPermissions::permissions

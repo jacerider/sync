@@ -1,0 +1,8 @@
+# Example sync_client plugin definitions.
+# Plugin property $defaults are defined in SyncClientManager.
+first:
+  id: one
+  label: One
+second:
+  id: two
+  label: Two

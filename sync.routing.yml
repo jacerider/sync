@@ -1,0 +1,38 @@
+sync.sync:
+  path: '/admin/sync'
+  defaults:
+    _form: '\Drupal\sync\Form\SyncForm'
+    _title: 'Sync'
+  requirements:
+    _permission: 'access sync overview'
+  options:
+    _admin_route: TRUE
+sync.settings:
+  path: '/admin/sync/settings'
+  defaults:
+    _form: '\Drupal\sync\Form\SettingsForm'
+    _title: 'Sync Settings'
+  requirements:
+    _permission: 'manage sync'
+  options:
+    _admin_route: TRUE
+sync.log:
+  path: '/admin/sync/{plugin_id}/log'
+  defaults:
+    _controller: '\Drupal\sync\Controller\SyncController::log'
+    _title: 'Sync Log'
+    plugin: null
+  requirements:
+    _permission: 'access sync overview'
+  options:
+    _admin_route: TRUE
+sync.fetcher.form:
+  path: '/admin/sync/{plugin_id}/form'
+  defaults:
+    _form: '\Drupal\sync\Form\SyncFetcherForm'
+    _title: 'Perform Sync'
+  requirements:
+    _sync_resource_access: 'plugin_id.update'
+    # _permission: 'access sync overview'
+  options:
+    _admin_route: TRUE

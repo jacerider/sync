@@ -1,0 +1,22 @@
+{
+  "name": "jacerider/sync",
+  "description": "Data migration and API integration suite.",
+  "type": "drupal-module",
+  "license": "GPL-2.0+",
+  "homepage": "https://github.com/jacerider/sync",
+  "authors": [
+    {
+      "name": "Cyle Carlson (JaceRider)",
+      "email": "jacerider@gmail.com",
+      "role": "Maintainer"
+    }
+  ],
+  "support": {
+    "issues": "https://github.com/jacerider/sync/issues",
+    "source": "https://github.com/jacerider/sync"
+  },
+  "minimum-stability": "dev",
+  "require": {
+    "drupal/core": "^8.8 || ^9"
+  }
+}
