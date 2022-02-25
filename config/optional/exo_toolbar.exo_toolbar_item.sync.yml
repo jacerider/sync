@@ -1,0 +1,24 @@
+uuid: 27dd688d-f5be-42b8-8899-c6e8bbe6a7bb
+langcode: en
+status: true
+dependencies:
+  config:
+    - exo_toolbar.exo_toolbar.default
+id: sync
+toolbar: default
+region: top
+section: right
+weight: -1
+plugin: link
+settings:
+  id: link
+  provider: exo_toolbar
+  title: Sync
+  url: 'internal:/admin/sync'
+  target: 0
+  mark_only_horizontal: 1
+  icon: regular-sync-alt
+  badge_type: ''
+  badge_settings: {  }
+  toolbar_item_id: null
+visibility: {  }
