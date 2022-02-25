@@ -1,6 +1,5 @@
 name: 'Sync'
 type: module
-description: 'Data migration suite.'
-package: 'Custom'
-version: '3.0-dev'
+description: 'Data migration and API integration suite.'
+package: Migration
 core_version_requirement: ^8.8 || ^9
