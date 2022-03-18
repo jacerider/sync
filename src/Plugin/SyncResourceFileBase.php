@@ -75,41 +75,75 @@ abstract class SyncResourceFileBase extends SyncResourceBase {
       throw new SyncFailException('The data could not be saved because the destination ' . $destination . 'is invalid. This may be caused by improper use of file_save_data() or a missing stream wrapper.');
     }
     if ($entity->isNew()) {
-      $replace = $this->getReplaceBehavior($item);
-      /** @var \Drupal\Core\File\FileSystemInterface $file_system */
-      $file_system = \Drupal::service('file_system');
-      $file_system->prepareDirectory($directory, FileSystemInterface::CREATE_DIRECTORY);
-      $uri = $file_system->saveData($item['contents'], $destination, $replace);
-      $entity->setFileUri($uri);
-      $entity->setFilename($file_system->basename($uri));
-      $entity->setMimeType(\Drupal::service('file.mime_type.guesser')->guess($uri));
-
-      // If we are replacing an existing file re-use its database record.
-      // @todo Do not create a new entity in order to update it. See
-      //   https://www.drupal.org/node/2241865.
-      if ($replace == FileSystemInterface::EXISTS_REPLACE) {
-        $existing_files = $this->entityTypeManager->getStorage('file')->loadByProperties([
-          'uri' => $uri,
-        ]);
-        if (count($existing_files)) {
-          /** @var \Drupal\file\FileInterface $existing */
-          $existing = reset($existing_files);
-          $entity->fid = $existing->id();
-          $entity->setOriginalId($existing->id());
-          $entity->setFilename($existing->getFilename());
-        }
-      }
-      elseif ($replace == FileSystemInterface::EXISTS_RENAME && is_file($destination)) {
-        $entity->setFilename($file_system->basename($destination));
-      }
-
-      $entity->set('status', FILE_STATUS_PERMANENT);
+      $this->processItemAsNewFile($entity, $item);
     }
     else {
       file_put_contents($entity->getFileUri(), $item['contents']);
+      $this->processItemAsExistingFile($entity, $item);
+    }
+  }
+
+  /**
+   * Process a new file entity.
+   */
+  protected function processItemAsNewFile(FileInterface $entity, SyncDataItem $item) {
+    $directory = $this->getDirectory($item);
+    $filename = $this->getFilename($item);
+    $destination = $directory . '/' . $filename;
+    /** @var \Drupal\Core\File\FileSystemInterface $file_system */
+    $file_system = \Drupal::service('file_system');
+    $file_system->prepareDirectory($directory, FileSystemInterface::CREATE_DIRECTORY);
+    $replace = $this->getReplaceBehavior($item);
+    $uri = $file_system->saveData($item['contents'], $destination, $replace);
+    $entity->setOwnerId(0);
+    $entity->setFileUri($uri);
+    $entity->setFilename($file_system->basename($uri));
+    $entity->setMimeType(\Drupal::service('file.mime_type.guesser')->guess($uri));
+
+    // If we are replacing an existing file re-use its database record.
+    // @todo Do not create a new entity in order to update it. See
+    //   https://www.drupal.org/node/2241865.
+    if ($replace == FileSystemInterface::EXISTS_REPLACE) {
+      $existing_files = $this->entityTypeManager->getStorage('file')->loadByProperties([
+        'uri' => $uri,
+      ]);
+      if (count($existing_files)) {
+        /** @var \Drupal\file\FileInterface $existing */
+        $existing = reset($existing_files);
+        $entity->fid = $existing->id();
+        $entity->setOriginalId($existing->id());
+        $entity->setFilename($existing->getFilename());
+      }
+    }
+    elseif ($replace == FileSystemInterface::EXISTS_RENAME && is_file($destination)) {
+      $entity->setFilename($file_system->basename($destination));
+    }
+
+    $entity->set('status', FileInterface::STATUS_PERMANENT);
+  }
+
+  /**
+   * Process an existing file entity.
+   */
+  protected function processItemAsExistingFile(FileInterface $entity, SyncDataItem $item) {
+    file_put_contents($entity->getFileUri(), $item['contents']);
+    $this->renameFile($entity, $item);
+  }
+
+  /**
+   * Process an existing file entity.
+   */
+  protected function renameFile(FileInterface $entity, SyncDataItem $item) {
+    if (!$entity->isNew()) {
+      $directory = $this->getDirectory($item);
+      $filename = $this->getFilename($item);
+      $destination = $directory . '/' . $filename;
       if ($destination != $entity->getFileUri()) {
+        /** @var \Drupal\Core\File\FileSystemInterface $file_system */
+        $file_system = \Drupal::service('file_system');
+        $file_system->prepareDirectory($directory, FileSystemInterface::CREATE_DIRECTORY);
         $replace = $this->getReplaceBehavior($item);
-        file_move($entity, $destination, $replace);
+        $file_system->move($entity->getFileUri(), $destination, $replace);
         $entity->setFileUri($destination);
         $entity->save();
         if (\Drupal::moduleHandler()->moduleExists('crop')) {
