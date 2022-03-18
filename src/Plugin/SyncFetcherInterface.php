@@ -22,6 +22,35 @@ interface SyncFetcherInterface extends PluginInspectionInterface {
   public function setSetting($key, $value);
 
   /**
+   * Get setting.
+   *
+   * @param string $key
+   *   The key.
+   *
+   * @return mixed
+   *   The setting value.
+   */
+  public function getSetting($key);
+
+  /**
+   * Get settings.
+   *
+   * @return array
+   *   The settings.
+   */
+  public function getSettings();
+
+  /**
+   * Set settings.
+   *
+   * @param string[] $settings
+   *   The settings.
+   *
+   * @return $this
+   */
+  public function setSettings(array $settings);
+
+  /**
    * Set paging status.
    *
    * @param bool $status

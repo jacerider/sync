@@ -4,6 +4,7 @@ namespace Drupal\sync\Plugin;
 
 use Drupal\Component\Plugin\PluginBase;
 use Drupal\Component\Render\FormattableMarkup;
+use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Database\Query\SelectInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -102,6 +103,20 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
    * @var int
    */
   protected $maxDebug = 100;
+
+  /**
+   * The queue id.
+   *
+   * @var string
+   */
+  protected $queueId;
+
+  /**
+   * Cached context for currently processed item.
+   *
+   * @var array
+   */
+  protected $itemContext = [];
 
   /**
    * Constructs a SyncResource object.
@@ -355,9 +370,10 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
    *   Additional context.
    */
   protected function buildJobs(array $context) {
-    $this->log(LogLevel::DEBUG, '%plugin_label: Build Data', $this->getContext());
+    $context = NestedArray::mergeDeep($this->getContext(), $context);
+    $this->log(LogLevel::DEBUG, '%plugin_label: Build Data', $context);
     try {
-      $data = $this->fetchData();
+      $data = $this->fetchData(NULL, $context);
       if ($data->hasItems() || $this->shouldRunOnEmpty()) {
         $this->queueStart($context);
         $this->queueData($data, $context);
@@ -394,7 +410,8 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
    *   Additional context.
    */
   protected function queueStart(array $context = []) {
-    $this->log(LogLevel::DEBUG, '%plugin_label: Add Job: Queue Start', $this->getContext());
+    $context = NestedArray::mergeDeep($this->getContext(), $context);
+    $this->log(LogLevel::DEBUG, '%plugin_label: Add Job: Queue Start', $context);
     $this->queue->createItem([
       'plugin_id' => $this->getPluginId(),
       'op' => 'doStart',
@@ -411,7 +428,8 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
    *   Additional context.
    */
   protected function queueData(SyncDataItems $items, array $context = []) {
-    $this->log(LogLevel::DEBUG, '%plugin_label: Add Job: Queue Data', $this->getContext());
+    $context = NestedArray::mergeDeep($this->getContext(), $context);
+    $this->log(LogLevel::DEBUG, '%plugin_label: Add Job: Queue Data', $context);
     foreach ($items->items() as $item) {
       $this->queue->createItem([
         'plugin_id' => $this->getPluginId(),
@@ -433,12 +451,40 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
    *   Additional context.
    */
   protected function queuePage(SyncDataItems $items, array $context = []) {
-    $this->log(LogLevel::DEBUG, '%plugin_label: Add Job: Queue Page', $this->getContext());
+    $context = NestedArray::mergeDeep($this->getContext(), $context);
+    $this->log(LogLevel::DEBUG, '%plugin_label: Add Job: Queue Page', $context);
+    $context['%page'] = isset($context['%page']) ? $context['%page'] + 1 : 2;
+    $context['%fetcher_settings'] = $this->getFetcher()->getSettings();
     $this->queue->createItem([
       'plugin_id' => $this->getPluginId(),
       'op' => 'doPage',
       'data' => [
         'items' => $items,
+        'context' => $context,
+      ],
+    ]);
+  }
+
+  /**
+   * Add a sub-resource queue.
+   *
+   * @param string $resource_id
+   *   The resource id.
+   * @param array $fetcher_settings
+   *   The fetcher settings.
+   */
+  protected function queueSubResource($resource_id, array $fetcher_settings = []) {
+    $this->log(LogLevel::DEBUG, '%plugin_label: Add Job: Queue Sub Resource', $this->getContext());
+    $context = [
+      '%sync_as_batch' => !empty($this->itemContext['%sync_as_batch']),
+      '%parent_plugin_id' => $this->itemContext['%parent_plugin_id'] ?? $this->getPluginId(),
+      '%fetcher_settings' => $fetcher_settings,
+    ];
+    $this->queue->createItem([
+      'plugin_id' => $this->getPluginId(),
+      'op' => 'doSubResource',
+      'data' => [
+        'resource_id' => $resource_id,
         'context' => $context,
       ],
     ]);
@@ -454,7 +500,8 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
    *   Additional context.
    */
   protected function queueEnd(array $context = []) {
-    $this->log(LogLevel::DEBUG, '%plugin_label: Add Job: Queue End', $this->getContext());
+    $context = NestedArray::mergeDeep($this->getContext(), $context);
+    $this->log(LogLevel::DEBUG, '%plugin_label: Add Job: Queue End', $context);
     if ($this->usesCleanup()) {
       $this->queue->createItem([
         'plugin_id' => $this->getPluginId(),
@@ -521,6 +568,13 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
   }
 
   /**
+   * Run jobs as a batch.
+   */
+  public function runAsSubResource(array $context) {
+    $this->buildJobs($context);
+  }
+
+  /**
    * Take each item and build a batch.
    *
    * @param string $item_callback
@@ -569,8 +623,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
    */
   public function doStart(array $context) {
     $this->log(LogLevel::INFO, '%plugin_label: Run Job: Start', $context);
-    $this->resetPageCount()
-      ->resetProcessCount('success')
+    $this->resetProcessCount('success')
       ->resetProcessCount('skip')
       ->resetProcessCount('fail');
     \Drupal::service('plugin.manager.sync_resource')->setLastRunStart($this->pluginDefinition, $this->getStartTime());
@@ -647,6 +700,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       $this->prepareItem($item);
       $id = $this->id($item);
       $context['%id'] = $id;
+      $this->itemContext = $context;
       $entity = $this->loadEntity($item);
       if ($entity) {
         if ($this->accessEntity($entity)) {
@@ -682,7 +736,19 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       if ($entity && !$entity->isNew()) {
         $this->syncStorage->saveEntity($entity);
       }
-      $this->incrementProcessCount('skip');
+      switch ($e->getCode()) {
+        case 0:
+          $this->incrementProcessCount('skip');
+          break;
+
+        case 1:
+          $this->incrementProcessCount('success');
+          break;
+
+        case 2:
+          $this->incrementProcessCount('fail');
+          break;
+      }
       if (empty($data['%sync_as_job'])) {
         throw new SyncIgnoreException($e->getMessage());
       }
@@ -730,17 +796,15 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
    *   ['items' => SyncDataItems, 'context' => []].
    */
   public function doPage(array $data) {
-    $this->incrementPageCount();
-    $page = $this->getPageCount();
     $context = [
-      '@page' => $page,
       '@success' => $this->getProcessCount('success'),
       '@skip' => $this->getProcessCount('skip'),
       '@fail' => $this->getProcessCount('fail'),
     ] + $data['context'];
     try {
-      $this->log(LogLevel::INFO, '%plugin_label: Fetching [Page: @page | Success: @success | Skipped: @skip | Failed: @fail]', $context);
-      $data = $this->fetchData($data['items']);
+      $this->log(LogLevel::INFO, '%plugin_label: Fetching [Page: %page | Success: @success | Skipped: @skip | Failed: @fail]', $context);
+      $this->getFetcher()->setSettings($context['%fetcher_settings']);
+      $data = $this->fetchData($data['items'], $context);
       if ($data->hasItems()) {
         $this->queueData($data, $context);
         if ($data->hasNextPage()) {
@@ -781,6 +845,21 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
         \Drupal::messenger()->addMessage($e->getMessage(), 'error');
       }
     }
+  }
+
+  /**
+   * The job called for each sub-resource of a sync.
+   *
+   * @param array $data
+   *   Is an associative array containing
+   *   ['items' => SyncDataItems, 'context' => []].
+   */
+  public function doSubResource(array $data) {
+    $plugin_id = $data['resource_id'];
+    $context = NestedArray::mergeDeep($this->getContext(), $data['context']);
+    /** @var \Drupal\sync\Plugin\SyncResourceInterface $instance */
+    $instance = \Drupal::service('plugin.manager.sync_resource')->createInstance($plugin_id);
+    $instance->runAsSubResource($context);
   }
 
   /**
@@ -905,8 +984,20 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       '%skip' => $this->getProcessCount('skip'),
       '%fail' => $this->getProcessCount('fail'),
     ];
-    $this->resetPageCount()
-      ->resetProcessCount('success')
+    if (!empty($context['%parent_plugin_id'])) {
+      // We are processing this as part of a parent. We will reply on the parent
+      // process.
+      return;
+    }
+    if ($this->queue->numberOfItems() > 1) {
+      // Additional items have been added to the queue. Continue processing.
+      $this->queueEnd($context);
+      if (!empty($context['%sync_as_batch'])) {
+        $this->runBatch();
+      }
+      return;
+    }
+    $this->resetProcessCount('success')
       ->resetProcessCount('skip')
       ->resetProcessCount('fail');
     $this->log(LogLevel::NOTICE, '%plugin_label: Completed [Success: %success, Skip: %skip, Fail: %fail]', $context);
@@ -1025,12 +1116,22 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
   /**
    * {@inheritdoc}
    */
-  public function fetchData(SyncDataItems $previous_data = NULL) {
+  public function fetchData(SyncDataItems $previous_data = NULL, array $context = []) {
+    if (!empty($context['%parent_plugin_id'])) {
+      // Use parent plugin for queue and logger.
+      $this->queue = \Drupal::service('queue')->get('sync_' . $context['%parent_plugin_id']);
+      $this->logger = \Drupal::service('logger.factory')->get('sync_' . $context['%parent_plugin_id']);
+    }
+    if (!empty($context['%fetcher_settings'])) {
+      // Use fetcher settings if supplied.
+      $this->getFetcher()->setSettings(NestedArray::mergeDeep($this->getFetcher()->getSettings(), $context['%fetcher_settings']));
+    }
     $fetcher = $this->getFetcher();
-    $data = $fetcher->doFetch($this->getPageCount(), $previous_data);
+    $page = $context['%page'] ?? 1;
+    $data = $fetcher->doFetch($page, $previous_data);
     $data = $this->getParser()->doParse($data);
     $data = new SyncDataItems($data);
-    $data->setHasNextPage($fetcher->hasNextPage($this->getPageCount(), $data));
+    $data->setHasNextPage($fetcher->hasNextPage($page, $data));
     $this->alterItems($data);
     foreach ($data as $item) {
       $this->alterItem($item);
@@ -1098,6 +1199,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       '%entity_type' => $this->getEntityType(),
       '%id' => 'na',
       '%bundle' => 'na',
+      '%page' => 1,
     ];
     return $context;
   }
@@ -1129,27 +1231,36 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
   }
 
   /**
-   * Set the page count.
+   * Set the queue count.
    */
-  protected function getPageCount() {
-    $count = $this->state->get($this->getStateKey() . '.page');
+  protected function getQueueCount() {
+    $count = $this->state->get($this->getStateKey() . '.queue');
     return $count ? $count : 1;
   }
 
   /**
-   * Increment the page count.
+   * Increment the queue count.
    */
-  protected function incrementPageCount() {
-    $count = $this->getPageCount();
-    $this->state->set($this->getStateKey() . '.page', $count + 1);
+  protected function incrementQueueCount() {
+    $count = $this->getQueueCount();
+    $this->state->set($this->getStateKey() . '.queue', $count + 1);
+    return $this;
+  }
+
+  /**
+   * Decrease the queue count.
+   */
+  protected function decrementQueueCount() {
+    $count = $this->getQueueCount();
+    $this->state->set($this->getStateKey() . '.queue', $count - 1);
     return $this;
   }
 
   /**
    * Reset the page count.
    */
-  protected function resetPageCount() {
-    $this->state->delete($this->getStateKey() . '.page');
+  protected function resetQueueCount() {
+    $this->state->delete($this->getStateKey() . '.queue');
     return $this;
   }
 
@@ -1202,6 +1313,11 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
     $log_to_db = FALSE;
     $log_to_messages = FALSE;
     $log_to_drush = FALSE;
+    foreach ($context as &$value) {
+      if (is_array($value)) {
+        $value = json_encode($value);
+      }
+    }
     switch ($level) {
       case LogLevel::EMERGENCY:
       case LogLevel::ALERT:
@@ -1240,6 +1356,9 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
         break;
     }
     if ($log_to_db) {
+      if (!empty($context['%parent_plugin_id'])) {
+        $context['channel'] = 'sync_' . $context['%parent_plugin_id'];
+      }
       $this->logger->log($level, $message, $context);
     }
     if ($log_to_messages && !empty($context['%sync_as_batch'])) {

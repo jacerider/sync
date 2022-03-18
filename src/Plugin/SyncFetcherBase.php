@@ -90,6 +90,28 @@ abstract class SyncFetcherBase extends PluginBase implements SyncFetcherInterfac
   /**
    * {@inheritdoc}
    */
+  public function getSetting($key) {
+    return isset($this->configuration[$key]) ? $this->configuration[$key] : NULL;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getSettings() {
+    return $this->configuration;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setSettings(array $settings) {
+    $this->configuration = $settings;
+    return $this;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function isPageEnabled() {
     return !empty($this->configuration['page_enabled']);
   }

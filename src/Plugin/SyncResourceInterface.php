@@ -77,6 +77,14 @@ interface SyncResourceInterface extends PluginInspectionInterface {
   public function build(array $context = []);
 
   /**
+   * Run jobs as subqueue.
+   *
+   * @param array $context
+   *   Additional context.
+   */
+  public function runAsSubResource(array $context);
+
+  /**
    * Run jobs as a batch.
    */
   public function runAsBatch();
@@ -100,11 +108,13 @@ interface SyncResourceInterface extends PluginInspectionInterface {
    *
    * @param \Drupal\sync\Plugin\SyncDataItems $previous_data
    *   The data used on the previous request. Used when paging.
+   * @param array $context
+   *   Additional context.
    *
    * @return \Drupal\sync\Plugin\SyncDataItems
    *   A collection of items.
    */
-  public function fetchData(SyncDataItems $previous_data = NULL);
+  public function fetchData(SyncDataItems $previous_data = NULL, array $context = []);
 
   /**
    * Method called when resetting plugin.
