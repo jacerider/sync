@@ -55,6 +55,7 @@ class Http extends SyncFetcherBase implements ContainerFactoryPluginInterface {
       'headers' => [],
       'as_content' => TRUE,
       'page_key' => 'page',
+      'timeout' => 30,
     ] + parent::defaultSettings();
   }
 
@@ -140,6 +141,32 @@ class Http extends SyncFetcherBase implements ContainerFactoryPluginInterface {
   public function setHeaderParameter($key, $value) {
     $this->configuration['headers'][$key] = $value;
   }
+  
+  /**
+   * Float describing the total timeout of the request in seconds.
+   * Use 0 to wait indefinitely (the default GuzzleHttp behavior).
+   * Drupal's default is 30.
+   *
+   * @see \Drupal\Core\Http\ClientFactory::fromOptions()
+   *
+   * @return float
+   */
+  public function getTimeout() {
+    return $this->configuration['timeout'];
+  }
+
+  /**
+   * Set Http client timeout.
+   *
+   * Drupal default is 30. Use 0 for indefinite timeout.
+   *
+   * @param float $timeout
+   *
+   * @return \Drupal\sync\Plugin\SyncFetcher\Http
+   */
+  public function setTimeout($timeout = 30) {
+    $this->configuration['timeout'] = $timeout;
+  }
 
   /**
    * {@inheritdoc}
@@ -148,6 +175,7 @@ class Http extends SyncFetcherBase implements ContainerFactoryPluginInterface {
     $options = [];
     $options['query'] = $this->getQuery();
     $options['headers'] = $this->getHeaders();
+    $options['timeout'] = $this->getTimeout();
     return $options;
   }
 
