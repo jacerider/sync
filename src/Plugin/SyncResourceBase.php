@@ -333,6 +333,19 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
   protected function alterParser(SyncParserInterface $parser) {}
 
   /**
+   * Prepare the raw data before it is added to SyncDataItems.
+   *
+   * @param array $data
+   *   The data items collection.
+   *
+   * @return array
+   *   The data.
+   */
+  protected function prepareData(array $data) {
+    return $data;
+  }
+
+  /**
    * Alter raw data before it has been processed.
    *
    * @param \Drupal\sync\Plugin\SyncDataItems $data
@@ -1130,6 +1143,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
     $page = $context['%page'] ?? 1;
     $data = $fetcher->doFetch($page, $previous_data);
     $data = $this->getParser()->doParse($data);
+    $data = $this->prepareData($data);
     $data = new SyncDataItems($data);
     $data->setHasNextPage($fetcher->hasNextPage($page, $data));
     $this->alterItems($data);
