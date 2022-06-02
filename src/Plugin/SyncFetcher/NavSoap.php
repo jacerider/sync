@@ -63,7 +63,7 @@ class NavSoap extends Soap {
    * {@inheritdoc}
    */
   public function addFilter($field, $criteria) {
-    $this->configuration['filters'][] = [
+    $this->configuration['filters'][$field] = [
       'Field' => $field,
       'Criteria' => $criteria,
     ];
@@ -123,7 +123,7 @@ class NavSoap extends Soap {
    * {@inheritdoc}
    */
   public function getParams() {
-    $this->addParam('filter', $this->getFilters());
+    $this->addParam('filter', array_values($this->getFilters()));
     $this->addParam('setSize', $this->getPageSize());
     if (!empty($this->bookmarkKey)) {
       $this->addParam('bookmarkKey', $this->bookmarkKey);
