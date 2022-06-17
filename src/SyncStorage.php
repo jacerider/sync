@@ -2,7 +2,7 @@
 
 namespace Drupal\sync;
 
-use Drupal\Core\Database\Driver\mysql\Connection;
+use Drupal\mysql\Driver\Database\mysql\Connection;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Database\Query\ConditionInterface;
 use Drupal\Core\Entity\EntityInterface;
@@ -13,9 +13,9 @@ use Drupal\Core\Entity\EntityInterface;
 class SyncStorage implements SyncStorageInterface {
 
   /**
-   * Drupal\Core\Database\Driver\mysql\Connection definition.
+   * Drupal\mysql\Driver\Database\mysql\Connection definition.
    *
-   * @var \Drupal\Core\Database\Driver\mysql\Connection
+   * @var \Drupal\mysql\Driver\Database\mysql\Connection
    */
   protected $database;
   /**
