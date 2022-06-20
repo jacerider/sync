@@ -2,7 +2,6 @@
 
 namespace Drupal\sync;
 
-use Drupal\mysql\Driver\Database\mysql\Connection;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Database\Query\ConditionInterface;
 use Drupal\Core\Entity\EntityInterface;
@@ -18,6 +17,7 @@ class SyncStorage implements SyncStorageInterface {
    * @var \Drupal\mysql\Driver\Database\mysql\Connection
    */
   protected $database;
+
   /**
    * Drupal\Core\Entity\EntityTypeManagerInterface definition.
    *
@@ -28,7 +28,7 @@ class SyncStorage implements SyncStorageInterface {
   /**
    * Constructs a new SyncStorage object.
    */
-  public function __construct(Connection $database, EntityTypeManagerInterface $entity_type_manager) {
+  public function __construct($database, EntityTypeManagerInterface $entity_type_manager) {
     $this->database = $database;
     $this->entityTypeManager = $entity_type_manager;
   }
