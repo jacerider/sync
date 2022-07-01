@@ -1142,7 +1142,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
     $fetcher = $this->getFetcher();
     $page = $context['%page'] ?? 1;
     $data = $fetcher->doFetch($page, $previous_data);
-    $data = $this->getParser()->doParse($data);
+    $data = $this->getParser()->doParse($data, $fetcher);
     $data = $this->prepareData($data);
     $data = new SyncDataItems($data);
     $data->setHasNextPage($fetcher->hasNextPage($page, $data));

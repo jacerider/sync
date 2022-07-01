@@ -51,7 +51,7 @@ class S3GetObject extends SyncFetcherBase {
    * {@inheritdoc}
    */
   public function getS3Arg($key) {
-    return isset($this->configuration['s3args'][$key]) ? $this->configuration['s3args'][$key] : NULL;
+    return $this->configuration['s3args'][$key] ?? NULL;
   }
 
 }

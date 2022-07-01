@@ -20,6 +20,13 @@ abstract class SyncFetcherBase extends PluginBase implements SyncFetcherInterfac
   protected $logger;
 
   /**
+   * The current page number.
+   *
+   * @var int
+   */
+  protected $pageNumber;
+
+  /**
    * Constructs a SyncResource object.
    *
    * @param array $configuration
@@ -147,6 +154,21 @@ abstract class SyncFetcherBase extends PluginBase implements SyncFetcherInterfac
   }
 
   /**
+   * Set the page number.
+   */
+  protected function setPageNumber($page_number) {
+    $this->pageNumber = $page_number;
+    return $this;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getPageNumber() {
+    return $this->pageNumber;
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function setPageLimit($limit) {
@@ -161,6 +183,7 @@ abstract class SyncFetcherBase extends PluginBase implements SyncFetcherInterfac
     if (!$previous_data) {
       $previous_data = new SyncDataItems();
     }
+    $this->setPageNumber($page_number);
     return $this->fetch($page_number, $previous_data);
   }
 

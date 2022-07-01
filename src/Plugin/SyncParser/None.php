@@ -2,6 +2,7 @@
 
 namespace Drupal\sync\Plugin\SyncParser;
 
+use Drupal\sync\Plugin\SyncFetcherInterface;
 use Drupal\sync\Plugin\SyncParserBase;
 
 /**
@@ -17,7 +18,7 @@ class None extends SyncParserBase {
   /**
    * {@inheritdoc}
    */
-  protected function parse($data) {
+  protected function parse($data, SyncFetcherInterface $fetcher) {
     return $data;
   }
 

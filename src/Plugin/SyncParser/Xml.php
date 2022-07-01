@@ -3,6 +3,7 @@
 namespace Drupal\sync\Plugin\SyncParser;
 
 use Drupal\Component\Utility\NestedArray;
+use Drupal\sync\Plugin\SyncFetcherInterface;
 use Drupal\sync\Plugin\SyncParserBase;
 
 /**
@@ -35,7 +36,7 @@ class Xml extends SyncParserBase {
   /**
    * {@inheritdoc}
    */
-  protected function parse($data) {
+  protected function parse($data, SyncFetcherInterface $fetcher) {
     if (empty($data)) {
       return [];
     }

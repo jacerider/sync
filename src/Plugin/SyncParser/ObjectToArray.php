@@ -2,6 +2,7 @@
 
 namespace Drupal\sync\Plugin\SyncParser;
 
+use Drupal\sync\Plugin\SyncFetcherInterface;
 use Drupal\sync\Plugin\SyncParserBase;
 use function GuzzleHttp\json_decode;
 
@@ -18,7 +19,7 @@ class ObjectToArray extends SyncParserBase {
   /**
    * {@inheritdoc}
    */
-  protected function parse($data) {
+  protected function parse($data, SyncFetcherInterface $fetcher) {
     return json_decode(json_encode($data), TRUE);
   }
 

@@ -2,7 +2,6 @@
 
 namespace Drupal\sync\Plugin\SyncParser;
 
-use Drupal\aggregator\Plugin\FetcherInterface;
 use Drupal\sync\Plugin\SyncFetcherInterface;
 use Drupal\sync\Plugin\SyncParserBase;
 

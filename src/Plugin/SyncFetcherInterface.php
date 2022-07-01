@@ -101,6 +101,14 @@ interface SyncFetcherInterface extends PluginInspectionInterface {
   public function setPageLimit($limit);
 
   /**
+   * Get the page number.
+   *
+   * @return int
+   *   The page number.
+   */
+  public function getPageNumber();
+
+  /**
    * Prepare for fetching.
    *
    * @param int $page_number

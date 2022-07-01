@@ -34,10 +34,12 @@ interface SyncParserInterface extends PluginInspectionInterface {
    *
    * @param mixed $data
    *   The data to parse.
+   * @param \Drupal\sync\Plugin\SyncFetcherInterface $fetcher
+   *   The fetcher.
    *
    * @return array
    *   The data as an array.
    */
-  public function doParse($data);
+  public function doParse($data, SyncFetcherInterface $fetcher);
 
 }

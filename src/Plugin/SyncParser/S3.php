@@ -2,6 +2,7 @@
 
 namespace Drupal\sync\Plugin\SyncParser;
 
+use Drupal\sync\Plugin\SyncFetcherInterface;
 use Drupal\sync\Plugin\SyncParserBase;
 
 /**
@@ -25,7 +26,7 @@ class S3 extends SyncParserBase {
   /**
    * {@inheritdoc}
    */
-  protected function parse($data) {
+  protected function parse($data, SyncFetcherInterface $fetcher) {
     /** @var \Aws\Result $data */
     if (!empty($data['Contents'])) {
       return $data['Contents'];
