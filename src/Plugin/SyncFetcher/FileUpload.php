@@ -121,7 +121,10 @@ class FileUpload extends SyncFetcherBase implements SyncFetcherFormInterface {
    */
   public function submitForm(array $form, FormStateInterface $form_state, SyncResourceInterface $resource) {
     /** @var \Drupal\file\FileInterface $file */
-    $file = $this->entityTypeManager->getStorage('file')->load($form_state->getValue(['file', 0]));
+    $file = $this->entityTypeManager->getStorage('file')->load($form_state->getValue([
+      'file',
+      0,
+    ]));
     if ($file) {
       $resource->getFetcher()->setSetting('path', $file->getFileUri());
       $resource->runAsBatch();
