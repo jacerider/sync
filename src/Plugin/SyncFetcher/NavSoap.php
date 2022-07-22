@@ -73,6 +73,14 @@ class NavSoap extends Soap {
   /**
    * {@inheritdoc}
    */
+  public function removeFilter($field) {
+    unset($this->configuration['filters'][$field]);
+    return $this;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function getResourceSegment() {
     return $this->configuration['resource_segment'];
   }
