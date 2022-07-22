@@ -24,3 +24,8 @@ services:
       - { name: access_check, applies_to: _sync_resource_access }
   sync.memory_cache:
     class: Drupal\Core\Cache\MemoryCache\MemoryCache
+  sync.subscriber:
+    class: Drupal\sync\EventSubscriber\SyncSubscriber
+    arguments: ['@cron']
+    tags:
+      - { name: event_subscriber }

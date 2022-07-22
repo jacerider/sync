@@ -36,3 +36,11 @@ sync.fetcher.form:
     # _permission: 'access sync overview'
   options:
     _admin_route: TRUE
+sync.cron:
+  path: '/sync-cron/{key}'
+  defaults:
+    _controller: '\Drupal\sync\Controller\SyncController::cron'
+  options:
+    no_cache: TRUE
+  requirements:
+    _access_system_cron: 'TRUE'

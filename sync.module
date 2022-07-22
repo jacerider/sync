@@ -10,6 +10,7 @@ use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityFormInterface;
 use Drupal\Core\Entity\FieldableEntityInterface;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Url;
 use Drupal\sync\Plugin\Field\FieldWidget\ReadonlyFieldWidget;
 use Drupal\views\Plugin\views\query\QueryPluginBase;
 use Drupal\views\ViewExecutable;
@@ -105,6 +106,17 @@ function sync_form_alter(&$form, FormStateInterface $form_state, $form_id) {
         $form[$name]['#access'] = $items->access('view');
       }
     }
+  }
+
+  if ($form_id === 'system_cron_settings') {
+    $cron_url = Url::fromRoute('sync.cron', ['key' => \Drupal::state()->get('system.cron_key')], ['absolute' => TRUE])->toString();
+
+    $form['cron_url'] = [
+      'drupal' => $form['cron_url'],
+      'sync' => [
+        '#markup' => '<p>' . t('For long-running tasks that will immediately return a 204 response, go to <a href=":cron" class="system-cron-settings__link">@cron</a>', [':cron' => $cron_url, '@cron' => $cron_url]) . '</p>',
+      ],
+    ];
   }
 
 }

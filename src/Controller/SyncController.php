@@ -6,6 +6,7 @@ use Drupal\Core\Controller\ControllerBase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\sync\Plugin\SyncResourceManager;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Class SyncController.
@@ -63,6 +64,19 @@ class SyncController extends ControllerBase {
         $this->syncResourceManager->getLastRunEnd($resource->getPluginDefinition()),
       ],
     ];
+  }
+
+  /**
+   * Run Cron once.
+   *
+   * We rely on the terminate event to actually run the cron.
+   *
+   * @return \Symfony\Component\HttpFoundation\Response
+   *   A Symfony response object.
+   */
+  public function cron() {
+    // @see \Drupal\sync\EventSubscriber\SyncSubscriber
+    return new Response('', 204);
   }
 
 }
