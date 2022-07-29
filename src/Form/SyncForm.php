@@ -190,12 +190,16 @@ class SyncForm extends FormBase {
       ];
       if ($account->hasPermission('sync debug')) {
         $form['table']['#header']['devel'] = $this->t('Debug');
+        $action = ['::debug'];
+        if ($as_form) {
+          $action = ['::asFormDebug'];
+        }
         $row['devel'] = [
           '#type' => 'submit',
           '#name' => 'debug_' . $definition['id'],
           '#value' => (string) $this->t('Debug', ['@label' => $definition['label']]),
           '#plugin_id' => $definition['id'],
-          '#submit' => ['::debug'],
+          '#submit' => $action,
         ];
       }
       $form['table'][$definition['id']] = $row;
@@ -252,6 +256,18 @@ class SyncForm extends FormBase {
     $trigger = $form_state->getTriggeringElement();
     $plugin_id = $trigger['#plugin_id'];
     $this->syncResourceManager->createInstance($plugin_id)->debug();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function asFormDebug(array &$form, FormStateInterface $form_state) {
+    $trigger = $form_state->getTriggeringElement();
+    $plugin_id = $trigger['#plugin_id'];
+    $form_state->setRedirect('sync.fetcher.form', [
+      'plugin_id' => $plugin_id,
+      'debug' => TRUE,
+    ]);
   }
 
 }

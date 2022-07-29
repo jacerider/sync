@@ -574,6 +574,10 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
    * Run jobs as a batch.
    */
   public function runAsBatch() {
+    if (\Drupal::request()->query->get('debug')) {
+      $this->debug();
+      return;
+    }
     $this->build([
       '%sync_as_batch' => TRUE,
     ]);
@@ -694,6 +698,31 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
     catch (\Exception $e) {
       \Drupal::messenger()->addMessage($e->getMessage(), 'error');
       return $results;
+    }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function manualProcessItem(SyncDataItem $item) {
+    try {
+      return $this->doProcess([
+        'item' => $item,
+        'context' => $this->getContext(),
+        '%sync_as_job' => FALSE,
+      ]);
+    }
+    catch (SyncIgnoreException $e) {
+      return;
+    }
+    catch (SyncSkipException $e) {
+      \Drupal::messenger()->addMessage($e->getMessage(), 'warning');
+    }
+    catch (SyncFailException $e) {
+      \Drupal::messenger()->addMessage($e->getMessage(), 'warning');
+    }
+    catch (\Exception $e) {
+      \Drupal::messenger()->addMessage($e->getMessage(), 'error');
     }
   }
 
@@ -1148,7 +1177,13 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
     $data->setHasNextPage($fetcher->hasNextPage($page, $data));
     $this->alterItems($data);
     foreach ($data as $item) {
-      $this->alterItem($item);
+      try {
+        $this->alterItem($item);
+      }
+      catch (SyncSkipException $e) {
+        $data->removeItem($item);
+        \Drupal::messenger()->addMessage($e->getMessage(), 'warning');
+      }
     }
     return $data;
   }
