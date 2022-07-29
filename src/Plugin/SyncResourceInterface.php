@@ -42,7 +42,7 @@ interface SyncResourceInterface extends PluginInspectionInterface {
   public function getParser();
 
   /**
-   * The job called for each item of a sync.
+   * Manually process multiple items with fetched data.
    *
    * @param array $datas
    *   An array of items.
@@ -53,7 +53,7 @@ interface SyncResourceInterface extends PluginInspectionInterface {
   public function manualProcessMultiple(array $datas);
 
   /**
-   * The job called for each item of a sync.
+   * Manually process fetched data.
    *
    * @param \Drupal\sync\Plugin\SyncDataItem $extend_item
    *   An item to add to all processed items.
@@ -62,6 +62,17 @@ interface SyncResourceInterface extends PluginInspectionInterface {
    *   An array of created/updated entities.
    */
   public function manualProcess(SyncDataItem $extend_item = NULL);
+
+  /**
+   * Manually process item without fetching data.
+   *
+   * @param \Drupal\sync\Plugin\SyncDataItem $item
+   *   The item to process.
+   *
+   * @return \Drupal\core\Entity\EntityInterface
+   *   The entity created/updated.
+   */
+  public function manualProcessItem(SyncDataItem $item);
 
   /**
    * Fetch the data and create jobs.
