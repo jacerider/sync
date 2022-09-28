@@ -48,7 +48,15 @@ class Csv extends SyncParserBase {
       }
     }
     if ($use_header) {
+      $found = [];
+      foreach ($csv[0] as $key => $value) {
+        if (isset($found[$value])) {
+          $csv[0][$key] .= ' ' . $found[$value];
+        }
+        $found[$value] = isset($found[$value]) ? $found[$value] + 1 : 1;
+      }
       array_walk($csv, function (&$a) use ($csv) {
+        $a = array_slice($a, 0, count($csv[0]));
         if (count($csv[0]) === count($a)) {
           $a = array_combine($csv[0], $a);
         }
