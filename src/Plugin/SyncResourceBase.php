@@ -367,9 +367,27 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
   public function build(array $context = []) {
     $context += $this->getContext();
     $this->log(LogLevel::DEBUG, '%plugin_label: Start', $this->getContext());
-    if ($this->usesCleanup()) {
-      // Only clean the queue if we use cleanup.
-      $this->queue->deleteQueue();
+    if ($this->queue->numberOfItems() > 0) {
+      // When running as cron, we need to make sure any items still remaining in
+      // the queue are processed before we start a new sync. We need to make
+      // doEnd and doCleanup are removed as they will be added back in by the
+      // new jobs.
+      if (!empty($context['%sync_as_cron'])) {
+        while ($item = $this->queue->claimItem()) {
+          if (!in_array($item->data['op'], ['doEnd', 'doCleanup'])) {
+            $items[] = $item;
+          }
+          $this->queue->deleteItem($item);
+        }
+        foreach ($items as $item) {
+          $this->queue->createItem($item->data);
+        }
+      }
+      // When we use cleanup or we are running as batch, we reset the queue.
+      elseif ($this->usesCleanup() || !empty($context['%sync_as_batch'])) {
+        // Only clean the queue if we use cleanup.
+        $this->queue->deleteQueue();
+      }
     }
     $this->setStartTime();
     $this->buildJobs($context);
