@@ -37,8 +37,8 @@ function sync_help($route_name, RouteMatchInterface $route_match) {
 function sync_cron() {
   $manager = \Drupal::service('plugin.manager.sync_resource');
   foreach ($manager->getForCron() as $instance) {
-    /* @var \Drupal\sync\Plugin\SyncResourceInterface $instance */
-    $instance->build();
+    /** @var \Drupal\sync\Plugin\SyncResourceInterface $instance */
+    $instance->build(['%sync_as_cron' => TRUE]);
   }
 }
 
