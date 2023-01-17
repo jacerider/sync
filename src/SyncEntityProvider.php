@@ -42,7 +42,7 @@ class SyncEntityProvider implements SyncEntityProviderInterface {
   protected $entities;
 
   /**
-   * Constructs a new MapeLocalManager object.
+   * Constructs a new SyncEntityProvider object.
    */
   public function __construct(SyncStorageInterface $sync_storage, EntityTypeManagerInterface $entity_type_manager, AccountInterface $current_user) {
     $this->syncStorage = $sync_storage;
