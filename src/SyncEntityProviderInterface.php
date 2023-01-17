@@ -29,7 +29,7 @@ interface SyncEntityProviderInterface {
   public function get($id, $entity_type, $bundle = NULL, array $values = [], $group = 'default');
 
   /**
-   * Get or create an unstaved entity.
+   * Get or create an unsaved entity.
    *
    * If entity was created, it is not saved.
    *
