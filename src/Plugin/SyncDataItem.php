@@ -95,6 +95,7 @@ class SyncDataItem implements \IteratorAggregate, \ArrayAccess, \Countable {
    * @return int
    *   The count.
    */
+  #[\ReturnTypeWillChange]
   public function count() {
     return count($this->data);
   }
@@ -169,6 +170,7 @@ class SyncDataItem implements \IteratorAggregate, \ArrayAccess, \Countable {
    * @return bool
    *   TRUE or FALSE
    */
+  #[\ReturnTypeWillChange]
   public function offsetExists($property) {
     $exists = NULL;
     NestedArray::getValue($this->data, (array) $property, $exists);
@@ -184,6 +186,7 @@ class SyncDataItem implements \IteratorAggregate, \ArrayAccess, \Countable {
    * @return mixed
    *   The value.
    */
+  #[\ReturnTypeWillChange]
   public function &offsetGet($property) {
     $value = NULL;
     if (!$this->offsetExists($property)) {
@@ -201,6 +204,7 @@ class SyncDataItem implements \IteratorAggregate, \ArrayAccess, \Countable {
    * @param mixed $value
    *   A value.
    */
+  #[\ReturnTypeWillChange]
   public function offsetSet($property, $value) {
     if ($value instanceof SyncDataItems || $value instanceof SyncDataItem) {
       $value = $value->toArray();
@@ -214,6 +218,7 @@ class SyncDataItem implements \IteratorAggregate, \ArrayAccess, \Countable {
    * @param mixed $property
    *   A key.
    */
+  #[\ReturnTypeWillChange]
   public function offsetUnset($property) {
     NestedArray::unsetValue($this->data, (array) $property);
   }
@@ -224,6 +229,7 @@ class SyncDataItem implements \IteratorAggregate, \ArrayAccess, \Countable {
    * @return \ArrayIterator
    *   An \ArrayIterator instance
    */
+  #[\ReturnTypeWillChange]
   public function getIterator() {
     return new \ArrayIterator($this->data);
   }
