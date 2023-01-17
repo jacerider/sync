@@ -3,7 +3,6 @@
 namespace Drupal\sync\Plugin;
 
 use Drupal\Component\Utility\NestedArray;
-use Traversable;
 
 /**
  * Custom ArrayObject implementation.
@@ -225,7 +224,7 @@ class SyncDataItem implements \IteratorAggregate, \ArrayAccess, \Countable {
    * @return \ArrayIterator
    *   An \ArrayIterator instance
    */
-  public function getIterator(): Traversable {
+  public function getIterator(): \Traversable {
     return new \ArrayIterator($this->data);
   }
 
