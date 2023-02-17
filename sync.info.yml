@@ -2,4 +2,4 @@ name: 'Sync'
 type: module
 description: 'Data migration and API integration suite.'
 package: Migration
-core_version_requirement: ^8.8 || ^9
+core_version_requirement: '^9.3 || ^10'
