@@ -100,7 +100,7 @@ function sync_form_alter(&$form, FormStateInterface $form_state, $form_id) {
     }
     foreach ($form_display->getComponents() as $name => $options) {
       $widget = $form_display->getRenderer($name);
-      if ($widget instanceof ReadonlyFieldWidget) {
+      if ($widget instanceof ReadonlyFieldWidget && $entity instanceof FieldableEntityInterface) {
         $items = $entity->get($name);
         $items->filterEmptyItems();
         $form[$name]['#access'] = $items->access('view');
@@ -152,10 +152,6 @@ function sync_views_query_alter(ViewExecutable $view, QueryPluginBase $query) {
 * Implements hook_mail().
 */
 function sync_mail($key, &$message, $params) {
-  $options = [
-    'langcode' => $message['langcode'],
-  ];
-
   switch ($key) {
     case 'end_fail':
       $message['headers']['Content-Type'] = 'text/html; charset=UTF-8; format=flowed';
