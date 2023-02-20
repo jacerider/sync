@@ -98,7 +98,7 @@ abstract class SyncResourceFileBase extends SyncResourceBase {
     $entity->setOwnerId(0);
     $entity->setFileUri($uri);
     $entity->setFilename($file_system->basename($uri));
-    $entity->setMimeType(\Drupal::service('file.mime_type.guesser')->guess($uri));
+    $entity->setMimeType(\Drupal::service('file.mime_type.guesser')->guessMimeType($uri));
 
     // If we are replacing an existing file re-use its database record.
     // @todo Do not create a new entity in order to update it. See
