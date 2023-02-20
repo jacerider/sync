@@ -22,6 +22,7 @@ class Csv extends SyncParserBase {
     return [
       'header' => TRUE,
       'delimiter' => ',',
+      'remove_lines' => FALSE,
     ] + parent::defaultSettings();
   }
 
@@ -29,6 +30,16 @@ class Csv extends SyncParserBase {
    * {@inheritdoc}
    */
   protected function parse($data, SyncFetcherInterface $fetcher) {
+    // Fix CSVs that store blob data on multiple lines.
+    if (!empty($this->configuration['remove_lines'])) {
+      preg_match_all('/"(.*?)"/s', $data, $matches);
+      if (!empty($matches[0])) {
+        foreach ($matches[0] as $value) {
+          $data = str_replace($value, str_replace(["\n", "\r"], '', $value), $data);
+        }
+      }
+    }
+
     $use_header = $this->configuration['header'];
     $rows = array_filter(explode(PHP_EOL, $data));
     $csv = array_map(function ($row) {
