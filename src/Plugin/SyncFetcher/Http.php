@@ -141,7 +141,7 @@ class Http extends SyncFetcherBase implements ContainerFactoryPluginInterface {
   public function setHeaderParameter($key, $value) {
     $this->configuration['headers'][$key] = $value;
   }
-  
+
   /**
    * Float describing the total timeout of the request in seconds.
    * Use 0 to wait indefinitely (the default GuzzleHttp behavior).
