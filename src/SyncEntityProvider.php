@@ -4,11 +4,10 @@ namespace Drupal\sync;
 
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
-use Drupal\Core\Entity\EntityChangedInterface;
 use Drupal\Core\Session\AccountInterface;
 
 /**
- * Class SyncEntityProvider.
+ * The sync entity provider.
  */
 class SyncEntityProvider implements SyncEntityProviderInterface {
 
@@ -68,9 +67,7 @@ class SyncEntityProvider implements SyncEntityProviderInterface {
       }
     }
     if ($entity) {
-      if ($entity instanceof EntityChangedInterface) {
-        $entity->setChangedTime(\Drupal::time()->getRequestTime());
-      }
+      $entity->__sync_changed = \Drupal::time()->getRequestTime();
       // Create sync record so it can be retrieved faster next time.
       // @see sync_entity_update().
       $this->attachProperties($entity, $id, $group);

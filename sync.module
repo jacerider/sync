@@ -5,6 +5,7 @@
  * Contains sync.module.
  */
 
+use Drupal\Core\Entity\EntityChangedInterface;
 use Drupal\Core\Routing\RouteMatchInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityFormInterface;
@@ -50,6 +51,15 @@ function sync_entity_delete(EntityInterface $entity) {
     'entity_id' => $entity->id(),
     'entity_type' => $entity->getEntityTypeId(),
   ]);
+}
+
+/**
+ * Implements hook_entity_presave().
+ */
+function sync_entity_presave(EntityInterface $entity) {
+  if (isset($entity->__sync_changed) && $entity instanceof EntityChangedInterface) {
+    $entity->setChangedTime(\Drupal::time()->getRequestTime());
+  }
 }
 
 /**
