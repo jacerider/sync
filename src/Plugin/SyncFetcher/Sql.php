@@ -8,7 +8,6 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\sync\Plugin\SyncFetcherBase;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\sync\Plugin\SyncDataItems;
-use PDO;
 
 /**
  * Plugin implementation of the 'SQL' sync resource.
@@ -92,7 +91,7 @@ class Sql extends SyncFetcherBase implements ContainerFactoryPluginInterface {
    *   The query.
    */
   public function getQuery() {
-    return isset($this->query) ? $this->query : NULL;
+    return $this->query ?? NULL;
   }
 
   /**
@@ -127,7 +126,7 @@ class Sql extends SyncFetcherBase implements ContainerFactoryPluginInterface {
       $length = $this->getPageSize();
       $start = ($page_number - 1) * $length;
       $this->query->range($start, $length);
-      $data = $this->query->execute()->fetchAll(PDO::FETCH_ASSOC);
+      $data = $this->query->execute()->fetchAll(\PDO::FETCH_ASSOC);
     }
     return $data;
   }
