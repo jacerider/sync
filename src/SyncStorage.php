@@ -104,7 +104,10 @@ class SyncStorage implements SyncStorageInterface {
       'entity_type' => $entity_type,
     ]);
     if (isset($data[$id])) {
-      $entity = $this->entityTypeManager->getStorage($data[$id]->entity_type)->load($data[$id]->entity_id);
+      $storage = $this->entityTypeManager->getStorage($data[$id]->entity_type);
+      // Disable static cache to avoid consuming all the memory.
+      $storage->getEntityType()->set('static_cache', FALSE);
+      $entity = $storage->load($data[$id]->entity_id);
       if ($entity) {
         // We temporarily store the locked state on the entity.
         $entity->syncIsLocked = !empty($data[$id]->locked);

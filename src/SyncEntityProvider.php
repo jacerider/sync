@@ -55,13 +55,17 @@ class SyncEntityProvider implements SyncEntityProviderInterface {
   public function get($id, $entity_type, $bundle = NULL, array $values = [], $group = 'default') {
     $entity = $this->syncStorage->loadEntity($id, $entity_type);
     if (!$entity && !empty($bundle) && !empty($values)) {
+      $storage = $this->entityTypeManager->getStorage($entity_type);
+      $entity_type = $storage->getEntityType();
+      // Disable static cache to avoid consuming all the memory.
+      $entity_type->set('static_cache', FALSE);
       // We do not have a record of this entity within sync. We check to see if
       // one already exists.
-      $bundle_key = $this->entityTypeManager->getDefinition($entity_type)->getKey('bundle');
+      $bundle_key = $entity_type->getKey('bundle');
       if ($bundle_key) {
         $values[$bundle_key] = $bundle;
       }
-      $results = $this->entityTypeManager->getStorage($entity_type)->loadByProperties($values);
+      $results = $storage->loadByProperties($values);
       if (!empty($results)) {
         $entity = reset($results);
       }
