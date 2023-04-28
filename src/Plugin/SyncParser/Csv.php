@@ -30,6 +30,14 @@ class Csv extends SyncParserBase {
    * {@inheritdoc}
    */
   protected function parse($data, SyncFetcherInterface $fetcher) {
+    // To use, composer require parsecsv/php-parsecsv.
+    if (class_exists('\ParseCsv\Csv')) {
+      // phpcs:ignore
+      $csv = new \ParseCsv\Csv($data);
+      $csv->heading = FALSE;
+      return $csv->data;
+    }
+
     // Fix CSVs that store blob data on multiple lines.
     if (!empty($this->configuration['remove_lines'])) {
       preg_match_all('/"(.*?)"/s', $data, $matches);
