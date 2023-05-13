@@ -583,7 +583,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
         $this->queue->deleteItem($item);
       }
       catch (SyncJobQueueReleaseException $e) {
-        $this->queue->releaseItem($e);
+        $this->queue->releaseItem($item);
       }
       catch (\Exception $e) {
         $this->queue->deleteItem($item);
