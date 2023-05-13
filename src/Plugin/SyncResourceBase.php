@@ -1060,10 +1060,15 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
     $this->resetProcessCount('success')
       ->resetProcessCount('skip')
       ->resetProcessCount('fail');
-    $this->log(LogLevel::NOTICE, '%plugin_label: Completed [Success: %success, Skip: %skip, Fail: %fail]', $context);
+    $this->log(LogLevel::NOTICE, '%plugin_label: Completed [Success: %success, Skip: %skip, Fail: %fail]', [
+      '%plugin_label' => (string) $context['%plugin_label'],
+      '%success' => (string) $context['%success'],
+      '%skip' => (string) $context['%skip'],
+      '%fail' => (string) $context['%fail'],
+    ]);
     \Drupal::service('plugin.manager.sync_resource')->setLastRunEnd($this->pluginDefinition);
     if (!empty($context['%fail'])) {
-      $email_fail = \Drupal::config('sync.settings')->get('email_fail');
+      $email_fail = $this->getErrorEmail();
       if ($email_fail) {
         /** @var \Drupal\Core\Mail\MailManagerInterface $mail_manager */
         $mail_manager = \Drupal::service('plugin.manager.mail');
@@ -1075,6 +1080,16 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
         $mail_manager->mail('sync', 'end_fail', $email_fail, $langcode, $context);
       }
     }
+  }
+
+  /**
+   * Get the error email.
+   *
+   * @return string
+   *   The email address.
+   */
+  protected function getErrorEmail() {
+    return \Drupal::config('sync.settings')->get('email_fail');
   }
 
   /**
