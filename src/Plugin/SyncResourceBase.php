@@ -1360,7 +1360,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
    */
   protected function getProcessCount($type = 'success') {
     $count = $this->state->get($this->getStateKey() . '.process.' . $type);
-    return $count ? $count : 0;
+    return $count ? (int) $count : 0;
   }
 
   /**
