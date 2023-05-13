@@ -20,6 +20,7 @@ use Drupal\sync\SyncStorageInterface;
 use Drupal\Core\State\StateInterface;
 use Drupal\Core\Url;
 use Drupal\sync\SyncIgnoreException;
+use Drupal\sync\SyncJobQueueReleaseException;
 use Psr\Log\LogLevel;
 
 /**
@@ -581,6 +582,9 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       catch (SyncFailException $e) {
         $this->queue->deleteItem($item);
       }
+      catch (SyncJobQueueReleaseException $e) {
+        $this->queue->releaseItem($e);
+      }
       catch (\Exception $e) {
         $this->queue->deleteItem($item);
       }
@@ -903,6 +907,11 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       $this->log(LogLevel::ERROR, '%plugin_label: Page %page Error: %error', $context);
       if (!empty($context['%sync_as_batch'])) {
         \Drupal::messenger()->addMessage($e->getMessage(), 'error');
+      }
+      if ($data['%sync_as_job']) {
+        // When a page request fails, we need to release the job so that it
+        // will be run again.
+        throw new SyncJobQueueReleaseException();
       }
     }
   }
