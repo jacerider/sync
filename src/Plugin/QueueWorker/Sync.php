@@ -7,6 +7,7 @@ use Drupal\Core\Queue\QueueWorkerBase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\sync\Plugin\SyncResourceManager;
+use Drupal\sync\SyncJobQueueReleaseException;
 
 /**
  * Process a queue of Sync items to process their data.
@@ -77,6 +78,10 @@ class Sync extends QueueWorkerBase implements ContainerFactoryPluginInterface {
       $item['%sync_as_job'] = TRUE;
       try {
         $plugin->{$op}($item);
+      }
+      catch (SyncJobQueueReleaseException $e) {
+        // Re-throw the exception to allow item to be re-queued.
+        throw new SyncJobQueueReleaseException($e->getMessage(), $e->getCode(), $e);
       }
       catch (\Exception $e) {
         // Do nothing. Exceptions have already been handled.

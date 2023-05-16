@@ -120,6 +120,34 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
   protected $itemContext = [];
 
   /**
+   * Flag indicating if verbose logging should be used.
+   *
+   * @var bool
+   */
+  protected $verboseLog;
+
+  /**
+   * The client.
+   *
+   * @var array
+   */
+  protected $client;
+
+  /**
+   * The fetcher.
+   *
+   * @var \Drupal\sync\Plugin\SyncFetcherInterface
+   */
+  protected $fetcher;
+
+  /**
+   * The parser.
+   *
+   * @var \Drupal\Component\Plugin\Exception\PluginException
+   */
+  protected $parser;
+
+  /**
    * Constructs a SyncResource object.
    *
    * @param array $configuration
@@ -664,7 +692,8 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
     $this->log(LogLevel::INFO, '%plugin_label: Run Job: Start', $context);
     $this->resetProcessCount('success')
       ->resetProcessCount('skip')
-      ->resetProcessCount('fail');
+      ->resetProcessCount('fail')
+      ->resetPageFailCount();
     \Drupal::service('plugin.manager.sync_resource')->setLastRunStart($this->pluginDefinition, $this->getStartTime());
   }
 
@@ -904,15 +933,21 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
     }
     catch (\Exception $e) {
       $context['%error'] = $e->getMessage();
-      $this->log(LogLevel::ERROR, '%plugin_label: Page %page Error: %error', $context);
       if (!empty($context['%sync_as_batch'])) {
         \Drupal::messenger()->addMessage($e->getMessage(), 'error');
       }
-      if ($data['%sync_as_job']) {
+      $page_fail_count = $this->getPageFailCount();
+      if ($page_fail_count < 5) {
         // When a page request fails, we need to release the job so that it
         // will be run again.
+        $this->log(LogLevel::ERROR, '%plugin_label: Page %page Attempt %attempt Error: %error', $context + [
+          '%attempt' => $page_fail_count + 1,
+        ]);
+        $this->incrementPageFailCount();
         throw new SyncJobQueueReleaseException();
       }
+      $this->log(LogLevel::ERROR, '%plugin_label: Page %page Final Error: %error', $context);
+      $this->resetPageFailCount();
     }
   }
 
@@ -1068,7 +1103,8 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
     }
     $this->resetProcessCount('success')
       ->resetProcessCount('skip')
-      ->resetProcessCount('fail');
+      ->resetProcessCount('fail')
+      ->resetPageFailCount();
     $this->log(LogLevel::NOTICE, '%plugin_label: Completed [Success: %success, Skip: %skip, Fail: %fail]', [
       '%plugin_label' => (string) $context['%plugin_label'],
       '%success' => (int) $context['%success'],
@@ -1356,7 +1392,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
   }
 
   /**
-   * Set the process count.
+   * Get the process count.
    */
   protected function getProcessCount($type = 'success') {
     $count = $this->state->get($this->getStateKey() . '.process.' . $type);
@@ -1377,6 +1413,31 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
    */
   protected function resetProcessCount($type = 'success') {
     $this->state->delete($this->getStateKey() . '.process.' . $type);
+    return $this;
+  }
+
+  /**
+   * Get the page fail count.
+   */
+  protected function getPageFailCount() {
+    $count = $this->state->get($this->getStateKey() . '.page.fail');
+    return $count ? (int) $count : 0;
+  }
+
+  /**
+   * Increment the page fail count.
+   */
+  protected function incrementPageFailCount() {
+    $count = $this->getPageFailCount();
+    $this->state->set($this->getStateKey() . '.page.fail', $count + 1);
+    return $this;
+  }
+
+  /**
+   * Reset the page fail count.
+   */
+  protected function resetPageFailCount() {
+    $this->state->delete($this->getStateKey() . '.page.fail');
     return $this;
   }
 
