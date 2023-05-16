@@ -944,6 +944,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
           '%attempt' => $page_fail_count + 1,
         ]);
         $this->incrementPageFailCount();
+        sleep(5);
         throw new SyncJobQueueReleaseException();
       }
       $this->log(LogLevel::ERROR, '%plugin_label: Page %page Final Error: %error', $context);
