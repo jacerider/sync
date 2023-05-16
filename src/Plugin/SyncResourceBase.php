@@ -1071,9 +1071,9 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       ->resetProcessCount('fail');
     $this->log(LogLevel::NOTICE, '%plugin_label: Completed [Success: %success, Skip: %skip, Fail: %fail]', [
       '%plugin_label' => (string) $context['%plugin_label'],
-      '%success' => (string) $context['%success'],
-      '%skip' => (string) $context['%skip'],
-      '%fail' => (string) $context['%fail'],
+      '%success' => (int) $context['%success'],
+      '%skip' => (int) $context['%skip'],
+      '%fail' => (int) $context['%fail'],
     ]);
     \Drupal::service('plugin.manager.sync_resource')->setLastRunEnd($this->pluginDefinition);
     if (!empty($context['%fail'])) {
