@@ -850,8 +850,8 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       if ($entity && !$entity->isNew()) {
         $this->syncStorage->saveEntity($entity);
       }
-      $context['%error'] = $e->getMessage();
-      $this->log(LogLevel::WARNING, '%plugin_label: %id: Process Item Skip: %error', $context);
+      $context['@error'] = $e->getMessage();
+      $this->log(LogLevel::WARNING, '%plugin_label: %id: Process Item Skip: @error', $context);
       $this->incrementProcessCount('skip');
       if (empty($data['%sync_as_job'])) {
         throw new SyncSkipException($e->getMessage());
@@ -861,8 +861,8 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       if ($entity && !$entity->isNew()) {
         $this->syncStorage->saveEntity($entity);
       }
-      $context['%error'] = $e->getMessage();
-      $this->log(LogLevel::ERROR, '%plugin_label: %id: Process Item Fail: %error', $context);
+      $context['@error'] = $e->getMessage();
+      $this->log(LogLevel::ERROR, '%plugin_label: %id: Process Item Fail: @error', $context);
       $this->incrementProcessCount('fail');
       if (empty($data['%sync_as_job'])) {
         throw new SyncFailException($e->getMessage());
@@ -872,8 +872,8 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       if ($entity && !$entity->isNew()) {
         $this->syncStorage->saveEntity($entity);
       }
-      $context['%error'] = $e->getMessage();
-      $this->log(LogLevel::ERROR, '%plugin_label: %id: Process Item Error: %error', $context);
+      $context['@error'] = $e->getMessage();
+      $this->log(LogLevel::ERROR, '%plugin_label: %id: Process Item Error: @error', $context);
       $this->incrementProcessCount('fail');
       if (empty($data['%sync_as_job'])) {
         throw new \Exception($e->getMessage());
@@ -918,21 +918,21 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       // Do nothing.
     }
     catch (SyncSkipException $e) {
-      $context['%error'] = $e->getMessage();
-      $this->log(LogLevel::WARNING, '%plugin_label: Page %page Skip: %error', $context);
+      $context['@error'] = $e->getMessage();
+      $this->log(LogLevel::WARNING, '%plugin_label: Page %page Skip: @error', $context);
       if (!empty($context['%sync_as_batch'])) {
         \Drupal::messenger()->addMessage($e->getMessage(), 'warning');
       }
     }
     catch (SyncFailException $e) {
-      $context['%error'] = $e->getMessage();
-      $this->log(LogLevel::ERROR, '%plugin_label: Page %page Fail: %error', $context);
+      $context['@error'] = $e->getMessage();
+      $this->log(LogLevel::ERROR, '%plugin_label: Page %page Fail: @error', $context);
       if (!empty($context['%sync_as_batch'])) {
         \Drupal::messenger()->addMessage($e->getMessage(), 'warning');
       }
     }
     catch (\Exception $e) {
-      $context['%error'] = $e->getMessage();
+      $context['@error'] = $e->getMessage();
       if (!empty($context['%sync_as_batch'])) {
         \Drupal::messenger()->addMessage($e->getMessage(), 'error');
       }
@@ -940,14 +940,14 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       if ($page_fail_count < 5) {
         // When a page request fails, we need to release the job so that it
         // will be run again.
-        $this->log(LogLevel::ERROR, '%plugin_label: Page %page Attempt %attempt Error: %error', $context + [
+        $this->log(LogLevel::ERROR, '%plugin_label: Page %page Attempt %attempt Error: @error', $context + [
           '%attempt' => $page_fail_count + 1,
         ]);
         $this->incrementPageFailCount();
         sleep(5);
         throw new SyncJobQueueReleaseException();
       }
-      $this->log(LogLevel::ERROR, '%plugin_label: Page %page Final Error: %error', $context);
+      $this->log(LogLevel::ERROR, '%plugin_label: Page %page Final Error: @error', $context);
       $this->resetPageFailCount();
     }
   }
@@ -1001,8 +1001,8 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       }
     }
     catch (\Exception $e) {
-      $context['%error'] = $e->getMessage();
-      $this->log(LogLevel::ERROR, '[Sync Cleanup: %plugin_label] FAIL: %entity_type:%bundle with data %data. Error: %error', $context);
+      $context['@error'] = $e->getMessage();
+      $this->log(LogLevel::ERROR, '[Sync Cleanup: %plugin_label] FAIL: %entity_type:%bundle with data %data. Error: @error', $context);
       if ($context['%sync_as_job']) {
         throw new \Exception($e->getMessage());
       }
@@ -1054,22 +1054,22 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       }
     }
     catch (SyncSkipException $e) {
-      $context['%error'] = $e->getMessage();
-      $this->log(LogLevel::WARNING, '%plugin_label: Clean Item Skip: %error', $context);
+      $context['@error'] = $e->getMessage();
+      $this->log(LogLevel::WARNING, '%plugin_label: Clean Item Skip: @error', $context);
       if ($data['%sync_as_job']) {
         throw new SyncSkipException($e->getMessage());
       }
     }
     catch (SyncFailException $e) {
-      $context['%error'] = $e->getMessage();
-      $this->log(LogLevel::ERROR, '%plugin_label: Clean Item Fail: %error', $context);
+      $context['@error'] = $e->getMessage();
+      $this->log(LogLevel::ERROR, '%plugin_label: Clean Item Fail: @error', $context);
       if ($data['%sync_as_job']) {
         throw new SyncFailException($e->getMessage());
       }
     }
     catch (\Exception $e) {
-      $context['%error'] = $e->getMessage();
-      $this->log(LogLevel::ERROR, '%plugin_label: Clean Item Error: %error', $context);
+      $context['@error'] = $e->getMessage();
+      $this->log(LogLevel::ERROR, '%plugin_label: Clean Item Error: @error', $context);
       if ($data['%sync_as_job']) {
         throw new \Exception($e->getMessage());
       }
@@ -1083,6 +1083,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
    *   Additional context that can be passed to the build.
    */
   public function doEnd(array $context) {
+    $sync_resource_manager = \Drupal::service('plugin.manager.sync_resource');
     $this->log(LogLevel::DEBUG, '%plugin_label: Run Job: End', $context);
     $context += [
       '%success' => $this->getProcessCount('success'),
@@ -1112,17 +1113,33 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       '%skip' => (int) $context['%skip'],
       '%fail' => (int) $context['%fail'],
     ]);
-    \Drupal::service('plugin.manager.sync_resource')->setLastRunEnd($this->pluginDefinition);
+    $sync_resource_manager->setLastRunEnd($this->pluginDefinition);
     if (!empty($context['%fail'])) {
       $email_fail = $this->getErrorEmail();
       if ($email_fail) {
+
         /** @var \Drupal\Core\Mail\MailManagerInterface $mail_manager */
         $mail_manager = \Drupal::service('plugin.manager.mail');
         $langcode = \Drupal::currentUser()->getPreferredLangcode();
         $context['%subject'] = t('Sync Failed: %plugin_label', $context, ['langcode' => $langcode]);
-        $message = t('The %plugin_label sync had %fail failures. [Success: %success, Skip: %skip, Fail: %fail]', $context, ['langcode' => $langcode]);
-        $url = Url::fromRoute('sync.log', ['plugin_id' => $context['%plugin_id']])->setAbsolute(TRUE)->toString();
-        $context['%message'] = strip_tags($message . "\n\n" . $url);
+        $message[] = t('The %plugin_label sync had %fail failures. [Success: %success, Skip: %skip, Fail: %fail]', $context, ['langcode' => $langcode]);
+
+        $select = \Drupal::database()->select('watchdog');
+        $select->condition('type', 'sync_ind_item_card_updated');
+        $select->condition('severity', 3);
+        $select->condition('timestamp', $sync_resource_manager->getLastRunStart($this->getPluginDefinition()), '>=');
+        $select->condition('timestamp', $sync_resource_manager->getLastRunEnd($this->getPluginDefinition()), '<=');
+        $select->fields('watchdog', ['message', 'variables']);
+        $errors = [];
+        foreach ($select->execute()->fetchAll() as $value) {
+          $errors[] = '- ' . strip_tags((string) new FormattableMarkup($value->message, unserialize($value->variables)));
+        }
+        if (!empty($errors)) {
+          $message[] = implode("\n", $errors);
+        }
+        $message[] = Url::fromRoute('sync.log', ['plugin_id' => $context['%plugin_id']])->setAbsolute(TRUE)->toString();
+
+        $context['%message'] = strip_tags(implode("\n\n", $message));
         $mail_manager->mail('sync', 'end_fail', $email_fail, $langcode, $context);
       }
     }
@@ -1325,8 +1342,8 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       '%plugin_id' => $this->getPluginId(),
       '%plugin_label' => $this->label(),
       '%entity_type' => $this->getEntityType(),
-      '%id' => 'na',
-      '%bundle' => 'na',
+      '%id' => 'NA',
+      '%bundle' => 'NA',
       '%page' => 1,
     ];
     return $context;
