@@ -1112,7 +1112,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       '%success' => (int) $context['%success'],
       '%skip' => (int) $context['%skip'],
       '%fail' => (int) $context['%fail'],
-    ]);
+    ] + $context);
     $sync_resource_manager->setLastRunEnd($this->pluginDefinition);
     if (!empty($context['%fail'])) {
       $email_fail = $this->getErrorEmail();
