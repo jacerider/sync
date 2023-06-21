@@ -2,10 +2,8 @@
 
 namespace Drupal\sync\Form;
 
-use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Session\AccountInterface;
 use Drupal\sync\Plugin\SyncFetcherFormInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\sync\Plugin\SyncFetcherManager;
@@ -122,6 +120,9 @@ class SyncFetcherForm extends FormBase {
     /** @var \Drupal\sync\Plugin\SyncFetcherFormInterface $fetcher */
     $fetcher = $resource->getFetcher();
     $fetcher->submitForm($form, $form_state, $resource);
+    if (!\Drupal::request()->query->get('debug')) {
+      $form_state->setRedirect('sync.sync');
+    }
   }
 
 }
