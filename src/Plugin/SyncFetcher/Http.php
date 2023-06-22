@@ -104,7 +104,7 @@ class Http extends SyncFetcherBase implements ContainerFactoryPluginInterface {
    * {@inheritdoc}
    */
   public function getQueryParameter($key) {
-    return isset($this->configuration['query'][$key]) ? $this->configuration['query'][$key] : NULL;
+    return $this->configuration['query'][$key] ?? NULL;
   }
 
   /**
@@ -132,7 +132,7 @@ class Http extends SyncFetcherBase implements ContainerFactoryPluginInterface {
    * {@inheritdoc}
    */
   public function getHeaderParameter($key) {
-    return isset($this->configuration['headers'][$key]) ? $this->configuration['headers'][$key] : NULL;
+    return $this->configuration['headers'][$key] ?? NULL;
   }
 
   /**
@@ -143,6 +143,8 @@ class Http extends SyncFetcherBase implements ContainerFactoryPluginInterface {
   }
 
   /**
+   * Set timeout.
+   *
    * Float describing the total timeout of the request in seconds.
    * Use 0 to wait indefinitely (the default GuzzleHttp behavior).
    * Drupal's default is 30.
@@ -150,6 +152,7 @@ class Http extends SyncFetcherBase implements ContainerFactoryPluginInterface {
    * @see \Drupal\Core\Http\ClientFactory::fromOptions()
    *
    * @return float
+   *   The timeout.
    */
   public function getTimeout() {
     return $this->configuration['timeout'];
@@ -161,11 +164,13 @@ class Http extends SyncFetcherBase implements ContainerFactoryPluginInterface {
    * Drupal default is 30. Use 0 for indefinite timeout.
    *
    * @param float $timeout
+   *   The timeout.
    *
-   * @return \Drupal\sync\Plugin\SyncFetcher\Http
+   * @return $this
    */
   public function setTimeout($timeout = 30) {
     $this->configuration['timeout'] = $timeout;
+    return $this;
   }
 
   /**
@@ -186,7 +191,7 @@ class Http extends SyncFetcherBase implements ContainerFactoryPluginInterface {
     if ($this->isPageEnabled()) {
       $this->setQueryParameter($this->configuration['page_key'], $page_number);
     }
-    $data = $this->httpClient->request('GET', $this->configuration['url'], $this->getOptions())->getBody();
+    $data = $this->httpClient->request('GET', $this->getUrl(), $this->getOptions())->getBody();
     if ($this->configuration['as_content']) {
       $data = $data->getContents();
     }
