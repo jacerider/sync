@@ -890,12 +890,12 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
    */
   public function doPage(array $data) {
     $context = [
-      '@success' => $this->getProcessCount('success'),
-      '@skip' => $this->getProcessCount('skip'),
-      '@fail' => $this->getProcessCount('fail'),
+      '%success' => $this->getProcessCount('success'),
+      '%skip' => $this->getProcessCount('skip'),
+      '%fail' => $this->getProcessCount('fail'),
     ] + $data['context'];
     try {
-      $this->log(LogLevel::INFO, '%plugin_label: Fetching [Page: %page | Success: @success | Skipped: @skip | Failed: @fail]', $context);
+      $this->log(LogLevel::INFO, '%plugin_label: Fetching [Page: %page | Success: %success | Skipped: %skip | Failed: %fail]', $context);
       $this->getFetcher()->setSettings($context['%fetcher_settings']);
       $data = $this->fetchData($data['items'], $context);
       if ($data->hasItems()) {
@@ -1032,12 +1032,12 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
           $this->cleanItem($entity, $sync, $context);
           $remaining = $this->queue->numberOfItems();
           if ($remaining % 50 === 1) {
-            $this->log(LogLevel::INFO, '%plugin_label: Cleaning [Remaining: @remaining | Success: @success | Skipped: @skip | Failed: @fail]', $context + [
+            $this->log(LogLevel::INFO, '%plugin_label: Cleaning [Remaining: @remaining | Success: @success | Skipped: @skip | Failed: @fail]', [
               '@remaining' => $remaining,
               '@success' => $this->getProcessCount('success'),
               '@skip' => $this->getProcessCount('skip'),
               '@fail' => $this->getProcessCount('fail'),
-            ]);
+            ] + $context);
           }
         }
         else {
@@ -1085,11 +1085,11 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
   public function doEnd(array $context) {
     $sync_resource_manager = \Drupal::service('plugin.manager.sync_resource');
     $this->log(LogLevel::DEBUG, '%plugin_label: Run Job: End', $context);
-    $context += [
+    $context = [
       '%success' => $this->getProcessCount('success'),
       '%skip' => $this->getProcessCount('skip'),
       '%fail' => $this->getProcessCount('fail'),
-    ];
+    ] + $context;
     if (!empty($context['%parent_plugin_id'])) {
       // We are processing this as part of a parent. We will reply on the parent
       // process.
@@ -1107,17 +1107,11 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       ->resetProcessCount('skip')
       ->resetProcessCount('fail')
       ->resetPageFailCount();
-    $this->log(LogLevel::NOTICE, '%plugin_label: Completed [Success: %success, Skip: %skip, Fail: %fail]', [
-      '%plugin_label' => (string) $context['%plugin_label'],
-      '%success' => (int) $context['%success'],
-      '%skip' => (int) $context['%skip'],
-      '%fail' => (int) $context['%fail'],
-    ] + $context);
+    $this->log(LogLevel::NOTICE, '%plugin_label: Completed [Success: %success, Skip: %skip, Fail: %fail]', $context);
     $sync_resource_manager->setLastRunEnd($this->pluginDefinition);
     if (!empty($context['%fail'])) {
       $email_fail = $this->getErrorEmail();
       if ($email_fail) {
-
         /** @var \Drupal\Core\Mail\MailManagerInterface $mail_manager */
         $mail_manager = \Drupal::service('plugin.manager.mail');
         $langcode = \Drupal::currentUser()->getPreferredLangcode();
@@ -1125,7 +1119,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
         $message[] = t('The %plugin_label sync had %fail failures. [Success: %success, Skip: %skip, Fail: %fail]', $context, ['langcode' => $langcode]);
 
         $select = \Drupal::database()->select('watchdog');
-        $select->condition('type', 'sync_ind_item_card_updated');
+        $select->condition('type', 'sync_' . $context['%plugin_id']);
         $select->condition('severity', 3);
         $select->condition('timestamp', $sync_resource_manager->getLastRunStart($this->getPluginDefinition()), '>=');
         $select->condition('timestamp', $sync_resource_manager->getLastRunEnd($this->getPluginDefinition()), '<=');
@@ -1480,6 +1474,9 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
    *   The log context.
    */
   protected function log($level, $message, array $context = []) {
+    $context = array_filter($context, function ($item) {
+      return !is_array($item);
+    });
     $log_to_db = FALSE;
     $log_to_messages = FALSE;
     $log_to_drush = FALSE;
