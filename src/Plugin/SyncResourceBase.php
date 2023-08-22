@@ -21,6 +21,7 @@ use Drupal\Core\State\StateInterface;
 use Drupal\Core\Url;
 use Drupal\sync\SyncIgnoreException;
 use Drupal\sync\SyncJobQueueReleaseException;
+use Drupal\sync\SyncSkipWithoutSaveException;
 use Psr\Log\LogLevel;
 
 /**
@@ -847,7 +848,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       }
     }
     catch (SyncSkipException $e) {
-      if ($entity && !$entity->isNew()) {
+      if ($entity && !$entity->isNew() && !$e instanceof SyncSkipWithoutSaveException) {
         $this->syncStorage->saveEntity($entity);
       }
       $context['@error'] = $e->getMessage();
