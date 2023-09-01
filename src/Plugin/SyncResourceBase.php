@@ -1116,11 +1116,18 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
         /** @var \Drupal\Core\Mail\MailManagerInterface $mail_manager */
         $mail_manager = \Drupal::service('plugin.manager.mail');
         $langcode = \Drupal::currentUser()->getPreferredLangcode();
-        $context['%subject'] = t('Sync Failed: %plugin_label', $context, ['langcode' => $langcode]);
-        $message[] = t('The %plugin_label sync had %fail failures. [Success: %success, Skip: %skip, Fail: %fail]', $context, ['langcode' => $langcode]);
+        $message_context = [
+          '%plugin_id' => $context['%plugin_id'],
+          '%plugin_label' => $context['%plugin_label'],
+          '%success' => $context['%success'],
+          '%skip' => $context['%skip'],
+          '%fail' => $context['%fail'],
+        ];
+        $message_context['%subject'] = t('Sync Failed: %plugin_label', $message_context, ['langcode' => $langcode]);
+        $message[] = t('The %plugin_label sync had %fail failures. [Success: %success, Skip: %skip, Fail: %fail]', $message_context, ['langcode' => $langcode]);
 
         $select = \Drupal::database()->select('watchdog');
-        $select->condition('type', 'sync_' . $context['%plugin_id']);
+        $select->condition('type', 'sync_' . $message_context['%plugin_id']);
         $select->condition('severity', 3);
         $select->condition('timestamp', $sync_resource_manager->getLastRunStart($this->getPluginDefinition()), '>=');
         $select->condition('timestamp', $sync_resource_manager->getLastRunEnd($this->getPluginDefinition()), '<=');
@@ -1132,10 +1139,10 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
         if (!empty($errors)) {
           $message[] = implode("\n", $errors);
         }
-        $message[] = Url::fromRoute('sync.log', ['plugin_id' => $context['%plugin_id']])->setAbsolute(TRUE)->toString();
+        $message[] = Url::fromRoute('sync.log', ['plugin_id' => $message_context['%plugin_id']])->setAbsolute(TRUE)->toString();
 
-        $context['%message'] = strip_tags(implode("\n\n", $message));
-        $mail_manager->mail('sync', 'end_fail', $email_fail, $langcode, $context);
+        $message_context['%message'] = strip_tags(implode("\n\n", $message));
+        $mail_manager->mail('sync', 'end_fail', $email_fail, $langcode, $message_context);
       }
     }
   }
