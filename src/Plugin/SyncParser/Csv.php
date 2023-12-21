@@ -32,7 +32,7 @@ class Csv extends SyncParserBase {
   protected function parse($data, SyncFetcherInterface $fetcher) {
     // To use, composer require parsecsv/php-parsecsv.
     if (class_exists('\ParseCsv\Csv')) {
-      if (class_exists('\UConverter')) {
+      if (!mb_detect_encoding((string) $data, 'UTF-8', TRUE) && class_exists('\UConverter')) {
         // Attempt to resolve issue when CSV files is incorrectly encoded as
         // UTF-8.
         // phpcs:ignore
