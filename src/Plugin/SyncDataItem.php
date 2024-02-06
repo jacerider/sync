@@ -27,6 +27,11 @@ class SyncDataItem implements \IteratorAggregate, \ArrayAccess, \Countable {
    *   An array.
    */
   public function __construct(array $data = []) {
+    foreach ($data as &$value) {
+      if (is_string($value) && $value === 'NULL') {
+        $value = NULL;
+      }
+    }
     $this->data = $data;
   }
 
@@ -135,7 +140,8 @@ class SyncDataItem implements \IteratorAggregate, \ArrayAccess, \Countable {
    *   The value.
    */
   public function &get($property) {
-    return $this->offsetGet($property);
+    $value = $this->offsetGet($property);
+    return $value;
   }
 
   /**
