@@ -39,8 +39,10 @@ class Csv extends SyncParserBase {
         $data = \UConverter::transcode($data, 'ISO-8859-1', 'UTF8', ['to_subst' => '?']);
       }
       // phpcs:ignore
-      $csv = new \ParseCsv\Csv($data);
-      $csv->heading = FALSE;
+      $csv = new \ParseCsv\Csv();
+      $csv->heading = !empty($this->configuration['header']);
+      $csv->delimiter = $this->configuration['delimiter'];
+      $csv->parse($data);
       return $csv->data;
     }
 
