@@ -36,6 +36,13 @@ abstract class SyncResourceMediaFileBase extends SyncResourceFileBase {
   protected $mediaEntityLabel;
 
   /**
+   * The alt text of the media entity.
+   *
+   * @var string
+   */
+  protected $mediaEntityAlt;
+
+  /**
    * Get media field where the file entity reference will be stored.
    *
    * @return string
@@ -60,6 +67,24 @@ abstract class SyncResourceMediaFileBase extends SyncResourceFileBase {
    */
   public function setMediaEntityLabel($label) {
     $this->mediaEntityLabel = $label;
+    return $this;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  protected function getMediaEntityAlt(SyncDataItem $item) {
+    return $this->mediaEntityAlt;
+  }
+
+  /**
+   * Set the entity alt.
+   *
+   * @param string $alt
+   *   The alt text.
+   */
+  public function setMediaEntityAlt($alt) {
+    $this->mediaEntityAlt = $alt;
     return $this;
   }
 
@@ -94,7 +119,7 @@ abstract class SyncResourceMediaFileBase extends SyncResourceFileBase {
     $entity->setName($label);
     $entity->get($field_name)->setValue([
       'target_id' => $file->id(),
-      'alt' => $label,
+      'alt' => $this->getMediaEntityAlt($item) ?: $label,
     ]);
   }
 
