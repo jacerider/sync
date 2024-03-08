@@ -21,6 +21,26 @@ use Drupal\sync\SyncFailException;
 abstract class SyncResourceFileBase extends SyncResourceBase {
 
   /**
+   * Only save new files.
+   *
+   * @var bool
+   */
+  protected $fileSaveNewOnly = FALSE;
+
+  /**
+   * Only save new media. If file already exists, don't save it again.
+   *
+   * @param bool $value
+   *   Flag.
+   *
+   * @return $this
+   */
+  public function saveNewFileOnly($value = TRUE) {
+    $this->fileSaveNewOnly = !empty($value);
+    return $this;
+  }
+
+  /**
    * Return the destination directory.
    *
    * @return string
@@ -68,6 +88,9 @@ abstract class SyncResourceFileBase extends SyncResourceBase {
    * Process a file entity.
    */
   protected function processItemAsFile(FileInterface $entity, SyncDataItem $item) {
+    if ($this->fileSaveNewOnly && !$entity->isNew()) {
+      return;
+    }
     $directory = $this->getDirectory($item);
     $filename = $this->getFilename($item);
     $destination = $directory . '/' . $filename;
