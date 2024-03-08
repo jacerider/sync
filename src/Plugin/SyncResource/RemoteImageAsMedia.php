@@ -141,4 +141,26 @@ class RemoteImageAsMedia extends SyncResourceMediaFileBase {
     }
   }
 
+  /**
+   * Process the remote image to media entity and return as array of target ids.
+   *
+   * @retur array
+   *   An array of target ids.
+   */
+  public function processToTargetIds($url, $label, $alt = NULL, $save_new_only = TRUE) {
+    $this->setRemoteUrl($url);
+    $this->setMediaEntityLabel($label);
+    $this->setMediaEntityAlt($alt ?? $label);
+    $this->saveNewFileOnly($save_new_only);
+    $parts = pathinfo($url);
+    $this->setFilename($parts['basename']);
+    $value = [];
+    foreach ($this->manualProcess() as $media) {
+      $value[] = [
+        'target_id' => $media->id(),
+      ];
+    }
+    return $value;
+  }
+
 }
