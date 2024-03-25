@@ -1501,14 +1501,14 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
         $message_level = 'error';
         $log_to_db = TRUE;
         $log_to_messages = TRUE;
-        $log_to_drush = FALSE;
+        $log_to_drush = TRUE;
         break;
 
       case LogLevel::WARNING:
         $message_level = 'warning';
         $log_to_db = TRUE;
         $log_to_messages = TRUE;
-        $log_to_drush = FALSE;
+        $log_to_drush = TRUE;
         break;
 
       case LogLevel::NOTICE:
