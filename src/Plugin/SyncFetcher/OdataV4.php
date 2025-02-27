@@ -2,13 +2,6 @@
 
 namespace Drupal\sync\Plugin\SyncFetcher;
 
-use Drupal\Core\Logger\LoggerChannelFactoryInterface;
-use Drupal\sync\Plugin\SyncFetcherBase;
-use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
-use Drupal\sync\Plugin\SyncDataItems;
-use Symfony\Component\DependencyInjection\ContainerInterface;
-use GuzzleHttp\ClientInterface;
-
 /**
  * Plugin implementation of the 'http' sync resource.
  *
