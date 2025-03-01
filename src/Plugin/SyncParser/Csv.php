@@ -42,8 +42,7 @@ class Csv extends SyncParserBase {
       $csv = new \ParseCsv\Csv();
       $csv->heading = !empty($this->configuration['header']);
       $csv->delimiter = $this->configuration['delimiter'];
-      $csv->file_data = $data;
-      $csv->auto();
+      $csv->parse($data);
       return $csv->data;
     }
 
