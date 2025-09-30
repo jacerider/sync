@@ -121,7 +121,7 @@ class SyncStorage implements SyncStorageInterface {
    */
   public function save($id, EntityInterface $entity, $locked = FALSE, $group = 'default') {
     $status = $this->database->merge('sync')
-      ->key(['id' => $id, 'entity_type' => $entity->getEntityTypeId()])
+      ->keys(['id' => $id, 'entity_type' => $entity->getEntityTypeId()])
       ->fields([
         'entity_id' => $entity->id(),
         'locked' => $locked === TRUE ? 1 : 0,
@@ -130,7 +130,7 @@ class SyncStorage implements SyncStorageInterface {
     if ($status) {
       $changed = \Drupal::time()->getRequestTime();
       $status = $this->database->merge('sync_data')
-        ->key(['id' => $id, 'segment' => $group])
+        ->keys(['id' => $id, 'segment' => $group])
         ->fields([
           'changed' => $changed,
         ])
