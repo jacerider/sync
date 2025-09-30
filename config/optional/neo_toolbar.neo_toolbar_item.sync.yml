@@ -1,0 +1,21 @@
+uuid: b2f2184f-ed49-4f7e-bd4f-3e20826e1f76
+langcode: en
+status: true
+dependencies:
+  config:
+    - neo_toolbar.neo_toolbar.default
+  module:
+    - sync
+id: sync
+label: Sync
+toolbar: default
+region: side_end
+plugin: link
+weight: -50
+settings:
+  url: 'internal:/admin/sync'
+  target: false
+  icon: sync-alt
+  badge:
+    type: ''
+visibility: {  }
