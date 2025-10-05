@@ -2,11 +2,14 @@
 
 namespace Drupal\sync\Plugin\Field\FieldWidget;
 
+use Drupal\Component\Utility\NestedArray;
+use Drupal\Core\Ajax\AjaxResponse;
+use Drupal\Core\Ajax\ReplaceCommand;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\Core\Field\WidgetBase;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\Validator\ConstraintViolationInterface;
@@ -55,8 +58,10 @@ class ReadonlyFieldWidget extends WidgetBase implements ContainerFactoryPluginIn
     return [
       'label' => 'above',
       'formatter_type' => NULL,
-      'formatter_settings' => NULL,
+      'formatter_settings' => [],
       'show_description' => FALSE,
+      'error_validation' => FALSE,
+      'empty_value' => '',
     ];
   }
 
@@ -78,6 +83,16 @@ class ReadonlyFieldWidget extends WidgetBase implements ContainerFactoryPluginIn
   /**
    * {@inheritdoc}
    */
+  public function form(FieldItemListInterface $items, array &$form, FormStateInterface $form_state, $get_delta = NULL) {
+    if ($items->isEmpty() && empty($this->getSetting('empty_value'))) {
+      return [];
+    }
+    return parent::form($items, $form, $form_state, $get_delta);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   protected function formMultipleElements(FieldItemListInterface $items, array &$form, FormStateInterface $form_state) {
     return $this->formSingleElement($items, 0, [], $form, $form_state);
   }
@@ -86,16 +101,40 @@ class ReadonlyFieldWidget extends WidgetBase implements ContainerFactoryPluginIn
    * {@inheritdoc}
    */
   public function formElement(FieldItemListInterface $items, $delta, array $element, array &$form, FormStateInterface $form_state) {
+    // If there are no items and an empty value is set, show the empty value.
+    if ($items->isEmpty()) {
+      $element['readonly_field'] = [
+        '#theme' => 'field',
+        '#title' => $items->getFieldDefinition()->getLabel(),
+        '#label_display' => $this->getSetting('label'),
+        '#view_mode' => '_custom',
+        '#bundle' => 'custom',
+        '#field_name' => 'custom',
+        '#field_type' => 'custom',
+        '#entity_type' => 'custom',
+        '#is_multiple' => FALSE,
+        '#language' => $items->getEntity()->language()->getId(),
+        0 => [
+          '#markup' => $this->getSetting('empty_value') ?? '',
+        ],
+      ];
+      return $element;
+    }
+
+    $initial_value = $items->getValue();
 
     if ($this->isDefaultValueWidget($form_state)) {
-      return [
-        '#markup' => $this->t('Widget is set to Read-Only, switch the widget to something else in order to set default values'),
+      $element['message'] = [
+        '#theme' => 'status_messages',
+        '#message_list' => [
+          'status' => [$this->t('Widget is set to Read-Only, switch the widget to something editable in order to set default values')],
+        ],
       ];
     }
 
     $entity_type = $items->getEntity()->getEntityType()->id();
 
-    /*@var $view_builder \Drupal\Core\Entity\EntityViewBuilderInterface*/
+    /** @var \Drupal\Core\Entity\EntityViewBuilderInterface $view_builder */
     $view_builder = $this->entityTypeManager->getViewBuilder($entity_type);
 
     $formatter_type = $this->getSetting('formatter_type');
@@ -104,11 +143,10 @@ class ReadonlyFieldWidget extends WidgetBase implements ContainerFactoryPluginIn
     $options = [
       'type' => $formatter_type,
       'label' => $this->getSetting('label'),
-      'settings' => isset($formatter_settings[$formatter_type]) ? $formatter_settings[$formatter_type] : [],
+      'settings' => $formatter_settings[$formatter_type] ?? [],
     ];
 
     $element['readonly_field'] = $view_builder->viewField($items, $options);
-
     // Show description only if there are items to show too.
     if ($this->getSetting('show_description') && !$items->isEmpty()) {
       $element['description'] = [
@@ -120,6 +158,12 @@ class ReadonlyFieldWidget extends WidgetBase implements ContainerFactoryPluginIn
       ];
     }
 
+    // Some formatters modify the field values when viewed
+    // (e.g. EntityReferenceFormatterBase) which can cause errors with some
+    // forms (e.g. the default value form), so set the item values back to
+    // their initial values here.
+    $items->setValue($initial_value);
+
     return $element;
   }
 
@@ -127,6 +171,7 @@ class ReadonlyFieldWidget extends WidgetBase implements ContainerFactoryPluginIn
    * {@inheritdoc}
    */
   public function settingsForm(array $form, FormStateInterface $form_state) {
+
     $field_type_formatters = $this->fieldFormatterManager->getOptions($this->fieldDefinition->getType());
     $field_type_definitions = $this->fieldFormatterManager->getDefinitions();
     $formatters = [];
@@ -146,11 +191,29 @@ class ReadonlyFieldWidget extends WidgetBase implements ContainerFactoryPluginIn
         '#options' => $this->labelOptions(),
         '#default_value' => $this->getSetting('label'),
       ],
+
       'formatter_type' => [
+        '#prefix' => $this->getSetting('formatter_type'),
         '#title' => $this->t('Format'),
         '#type' => 'select',
         '#options' => $formatters,
-        '#default_value' => $this->getSetting('formatter_type'),
+        '#default_value' => $this->getFormatterInstance()->getPluginId(),
+        '#ajax' => [
+          'event' => 'change',
+          'callback' => [$this, 'ajaxUpdateFormatterSettings'],
+        ],
+      ],
+      'error_validation' => [
+        '#title' => $this->t('Error Validation'),
+        '#description' => $this->t('Maintain field error validation.'),
+        '#type' => 'checkbox',
+        '#default_value' => $this->getSetting('error_validation'),
+      ],
+      'empty_value' => [
+        '#title' => $this->t('Empty Value'),
+        '#description' => $this->t('The value to use when the field is empty. If left blank, the field will not be rendered.'),
+        '#type' => 'textfield',
+        '#default_value' => $this->getSetting('empty_value'),
       ],
       'show_description' => [
         '#title' => $this->t('Show Description'),
@@ -158,75 +221,94 @@ class ReadonlyFieldWidget extends WidgetBase implements ContainerFactoryPluginIn
         '#type' => 'checkbox',
         '#default_value' => $this->getSetting('show_description'),
       ],
+      'formatter_settings' => [
+        '#type' => 'container',
+        '#attributes' => ['class' => 'rofw-formatter-settings'],
+      ],
     ];
 
-    $element['#element_validate'][] = [get_class($this), 'formatterSettingsValidate'];
-    foreach (array_keys($formatters) as $formatter_plugin_id) {
-
-      $formatter_plugin = $this->getFormatterInstance($formatter_plugin_id);
-
-      $settings_form = $formatter_plugin->settingsForm($form, $form_state);
-
-      if (!empty($settings_form)) {
-        $element['formatter_settings'][$formatter_plugin_id] = [
-          '#type' => 'fieldset',
-          '#title' => $formatters[$formatter_plugin_id] . ' ' . $this->t('Settings'),
-          '#states' => [
-            'visible' => [
-              ':input[name="fields[' . $field_name . '][settings_edit_form][settings][formatter_type]"]' => ['value' => $formatter_plugin_id],
-            ],
-          ],
-        ] + $settings_form;
-      }
+    $type_select_parents = [
+      'fields', $field_name,
+      'settings_edit_form',
+      'settings',
+      'formatter_type',
+    ];
+    $formatter_plugin_id = $form_state->getValue($type_select_parents, $this->getFormatterInstance()->getPluginId());
+    $formatter_plugin = $this->getFormatterInstance($formatter_plugin_id);
+    $settings_form = $formatter_plugin->settingsForm($form, $form_state);
+    if (!empty($settings_form)) {
+      $label = $formatter_plugin->getPluginDefinition()['label'] ?? '';
+      $element['formatter_settings'][$formatter_plugin_id] = [
+        '#type' => 'fieldset',
+        '#title' => $label . ' ' . $this->t('Settings'),
+      ] + $settings_form;
     }
 
     return $element;
   }
 
   /**
-   * {@inheritdoc}
+   * Ajax update so the selected formatter form can re-render.
    */
-  public static function formatterSettingsValidate($element, FormstateInterface $form_state) {
-    $values = $form_state->getValue($element['#parents']);
-    $values['formatter_settings'] = [
-      $values['formatter_type'] => $values['formatter_settings'][$values['formatter_type']],
-    ];
-    $form_state->setValue($element['#parents'], $values);
+  public function ajaxUpdateFormatterSettings(array &$form, FormStateInterface $form_state) {
+    $triggering_element = $form_state->getTriggeringElement();
+
+    $parents = $triggering_element['#array_parents'];
+    array_pop($parents);
+    $parents[] = 'formatter_settings';
+    $settings_form_container = NestedArray::getValue($form, $parents);
+
+    $response = new AjaxResponse();
+    $response->addCommand(new ReplaceCommand(".rofw-formatter-settings", $settings_form_container));
+    return $response;
   }
 
   /**
    * {@inheritdoc}
    */
   public function settingsSummary() {
+
     $formatters = $this->fieldFormatterManager->getOptions($this->fieldDefinition->getType());
     $label_options = $this->labelOptions();
+
     $plugin = $this->getFormatterInstance();
     if ($plugin) {
       $summary = $plugin->settingsSummary();
       $formatter_type = $this->getSetting('formatter_type');
       if (isset($formatters[$formatter_type])) {
-        $summary[] = t('Format: @format', ['@format' => $formatters[$formatter_type]]);
+        $summary = [
+          $this->t('Format: @format', ['@format' => $formatters[$formatter_type]]),
+        ] + $summary;
       }
     }
-    $summary[] = t('Label: @label', [
+
+    $summary[] = $this->t('Label: @label', [
       '@label' => $label_options[$this->getSetting('label')],
     ]);
-    $summary[] = t('Show Description: @show_desc', [
+
+    $summary[] = $this->t('Show Description: @show_desc', [
       '@show_desc' => $this->getSetting('show_description') ? $this->t('Yes') : $this->t('No'),
     ]);
+
+    if (!empty($this->getSetting('empty_value'))) {
+      $summary[] = $this->t('Empty Value: @empty_value', [
+        '@empty_value' => $this->getSetting('empty_value'),
+      ]);
+    }
+
     return $summary;
   }
 
   /**
    * Retrieves a formatter plugin instance.
    *
-   * @param string $plugin_id
+   * @param string|null $plugin_id
    *   The plugin_id for the formatter.
    *
    * @return \Drupal\Core\Field\FormatterInterface
    *   A formatter plugin instance.
    */
-  private function getFormatterInstance($plugin_id = NULL) {
+  private function getFormatterInstance(?string $plugin_id = NULL) {
     $settings = $this->getSetting('formatter_settings');
     if (empty($plugin_id)) {
       $plugin_id = $this->getSetting('formatter_type');
@@ -237,7 +319,7 @@ class ReadonlyFieldWidget extends WidgetBase implements ContainerFactoryPluginIn
       'field_definition' => $this->fieldDefinition,
       'configuration' => [
         'type' => $plugin_id,
-        'settings' => isset($settings[$plugin_id]) ? $settings[$plugin_id] : [],
+        'settings' => $settings[$plugin_id] ?? [],
       ],
     ];
 
@@ -263,7 +345,10 @@ class ReadonlyFieldWidget extends WidgetBase implements ContainerFactoryPluginIn
    * {@inheritdoc}
    */
   public function errorElement(array $element, ConstraintViolationInterface $error, array $form, FormStateInterface $form_state) {
-    // Skip validation for read only fields.
+    if (!empty($this->getSetting('error_validation'))) {
+      return parent::errorElement($element, $error, $form, $form_state);
+    }
+
     return FALSE;
   }
 
@@ -271,7 +356,19 @@ class ReadonlyFieldWidget extends WidgetBase implements ContainerFactoryPluginIn
    * {@inheritdoc}
    */
   public function flagErrors(FieldItemListInterface $items, ConstraintViolationListInterface $violations, array $form, FormStateInterface $form_state) {
-    // Skip validation for read only fields.
+    if (!empty($this->getSetting('error_validation'))) {
+      return parent::flagErrors($items, $violations, $form, $form_state);
+    }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function extractFormValues(FieldItemListInterface $items, array $form, FormStateInterface $form_state) {
+    parent::extractFormValues($items, $form, $form_state);
+    if ($this->isDefaultValueWidget($form_state)) {
+      $items->filterEmptyItems();
+    }
   }
 
 }
