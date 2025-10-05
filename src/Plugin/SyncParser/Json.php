@@ -4,7 +4,6 @@ namespace Drupal\sync\Plugin\SyncParser;
 
 use Drupal\sync\Plugin\SyncFetcherInterface;
 use Drupal\sync\Plugin\SyncParserBase;
-use function GuzzleHttp\json_decode;
 
 /**
  * Plugin implementation of the 'json' sync parser.
@@ -38,7 +37,7 @@ class Json extends SyncParserBase {
    */
   protected function parse($data, SyncFetcherInterface $fetcher) {
     $base_key = $this->configuration['base_key'];
-    $data = json_decode($data, TRUE);
+    $data = json_decode($data, TRUE) ?: [];
     if (!empty($base_key) && isset($data[$base_key])) {
       $data = $data[$base_key];
     }
