@@ -8,3 +8,28 @@ sync.settings:
     email_fail:
       type: string
       label: Email on Fail
+
+field.widget.settings.sync_readonly:
+  type: mapping
+  label: 'Readonly Field Widget display format settings'
+  mapping:
+    label:
+      type: string
+      label: 'Label'
+    formatter_type:
+      type: string
+      label: 'Format'
+    formatter_settings:
+      type: sequence
+      label: 'Formatter Settings'
+      sequence:
+        type: field.formatter.settings.[%key]
+    show_description:
+      type: boolean
+      label: 'Show Description'
+    error_validation:
+      type: boolean
+      label: 'Error Validation'
+    empty_value:
+      type: string
+      label: 'Empty value'
