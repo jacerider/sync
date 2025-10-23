@@ -41,6 +41,13 @@ class Json extends SyncParserBase {
     if (!empty($base_key) && isset($data[$base_key])) {
       $data = $data[$base_key];
     }
+    $page_size = $fetcher->getPageSize();
+    if ($page_size) {
+      $fetcher->setPageEnabled(TRUE);
+      $max = $page_size * $fetcher->getPageNumber();
+      $min = $max - $page_size;
+      $data = array_slice($data, $min, $page_size);
+    }
     return $data;
   }
 
