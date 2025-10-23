@@ -179,7 +179,7 @@ abstract class SyncFetcherBase extends PluginBase implements SyncFetcherInterfac
   /**
    * {@inheritdoc}
    */
-  public function doFetch($page_number = 1, SyncDataItems $previous_data = NULL) {
+  public function doFetch($page_number = 1, ?SyncDataItems $previous_data = NULL) {
     if (!$previous_data) {
       $previous_data = new SyncDataItems();
     }
@@ -190,7 +190,7 @@ abstract class SyncFetcherBase extends PluginBase implements SyncFetcherInterfac
   /**
    * {@inheritdoc}
    */
-  public function hasNextPage($page_number = 1, SyncDataItems $previous_data = NULL) {
+  public function hasNextPage($page_number = 1, ?SyncDataItems $previous_data = NULL) {
     // Is enabled?
     if (!$this->isPageEnabled()) {
       return FALSE;

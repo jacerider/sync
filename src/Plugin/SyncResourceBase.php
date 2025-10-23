@@ -144,7 +144,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
   /**
    * The parser.
    *
-   * @var \Drupal\Component\Plugin\Exception\PluginException
+   * @var \Drupal\sync\Plugin\SyncParserInterface
    */
   protected $parser;
 
@@ -248,7 +248,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
    * @return string
    *   The bundle.
    */
-  public function getBundle(SyncDataItem $item = NULL) {
+  public function getBundle(?SyncDataItem $item = NULL) {
     $definition = $this->getPluginDefinition();
     return !empty($definition['bundle']) ? $definition['bundle'] : $this->getEntityType();
   }
@@ -714,7 +714,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
   /**
    * {@inheritdoc}
    */
-  public function manualProcess(SyncDataItem $extend_item = NULL) {
+  public function manualProcess(?SyncDataItem $extend_item = NULL) {
     try {
       $results = [];
       $data = $this->fetchData();
@@ -1256,7 +1256,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
   /**
    * {@inheritdoc}
    */
-  public function fetchData(SyncDataItems $previous_data = NULL, array $context = []) {
+  public function fetchData(?SyncDataItems $previous_data = NULL, array $context = []) {
     if (!empty($context['%parent_plugin_id'])) {
       // Use parent plugin for queue and logger.
       $this->queue = \Drupal::service('queue')->get('sync_' . $context['%parent_plugin_id']);
