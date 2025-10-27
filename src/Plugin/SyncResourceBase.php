@@ -1312,10 +1312,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
           \Drupal::messenger()->addMessage($e->getMessage(), 'error');
         }
       }
-      if (\Drupal::service('module_handler')->moduleExists('kint')) {
-        ksm($data->toArray());
-      }
-      elseif (function_exists('kint')) {
+      if (function_exists('ksm')) {
         ksm($data->toArray());
       }
       else {
