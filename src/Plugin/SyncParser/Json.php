@@ -37,18 +37,68 @@ class Json extends SyncParserBase {
    */
   protected function parse($data, SyncFetcherInterface $fetcher) {
     $base_key = $this->configuration['base_key'];
-    $data = json_decode($data, TRUE) ?: [];
-    if (!empty($base_key) && isset($data[$base_key])) {
-      $data = $data[$base_key];
-    }
     $page_size = $fetcher->getPageSize();
+
+    // If pagination is enabled, use streaming to avoid loading everything.
     if ($page_size) {
       $fetcher->setPageEnabled(TRUE);
       $max = $page_size * $fetcher->getPageNumber();
       $min = $max - $page_size;
-      $data = array_slice($data, $min, $page_size);
+
+      // Stream parse only the slice we need.
+      $result = $this->streamParseSlice($data, $base_key, $min, $page_size);
+      return $result;
     }
-    return $data;
+
+    $decoded = json_decode($data, TRUE) ?: [];
+    if (!empty($base_key) && isset($decoded[$base_key])) {
+      $decoded = $decoded[$base_key];
+    }
+    return $decoded;
+  }
+
+  /**
+   * Stream parse a slice of the JSON data.
+   */
+  protected function streamParseSlice($json, $base_key, $offset, $limit) {
+    // Check if JsonMachine is available.
+    if (class_exists('\JsonMachine\Items')) {
+      // For very large files, use a streaming parser.
+      // Install: composer require halaxa/json-machine.
+      try {
+        $items = [];
+        $parser = \JsonMachine\Items::fromString($json);
+
+        if (!empty($base_key)) {
+          $parser = \JsonMachine\Items::fromString($json, ['pointer' => '/' . $base_key]);
+        }
+
+        $index = 0;
+        foreach ($parser as $item) {
+          if ($index >= $offset && $index < ($offset + $limit)) {
+            $items[] = (array) $item;
+          }
+          $index++;
+
+          // Stop early once we have what we need.
+          if ($index >= ($offset + $limit)) {
+            break;
+          }
+        }
+
+        return $items;
+      }
+      catch (\Exception $e) {
+        // If streaming fails, fall through to standard method.
+      }
+    }
+
+    // Fallback to original method if JsonMachine not available or fails.
+    $decoded = json_decode($json, TRUE) ?: [];
+    if (!empty($base_key) && isset($decoded[$base_key])) {
+      $decoded = $decoded[$base_key];
+    }
+    return array_slice($decoded, $offset, $limit);
   }
 
 }
