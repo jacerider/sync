@@ -64,19 +64,21 @@ class Json extends SyncParserBase {
     // Check if JsonMachine is available.
     if (class_exists('\JsonMachine\Items')) {
       // For very large files, use a streaming parser.
-      // Install: composer require halaxa/json-machine.
+      // Install: composer require halaxa/json-machine && composer dump-autoload -o.
       try {
         $items = [];
-        $parser = \JsonMachine\Items::fromString($json);
+        $options = ['decoder' => new \JsonMachine\JsonDecoder\ExtJsonDecoder(TRUE)];
 
         if (!empty($base_key)) {
-          $parser = \JsonMachine\Items::fromString($json, ['pointer' => '/' . $base_key]);
+          $options['pointer'] = '/' . $base_key;
         }
+
+        $parser = \JsonMachine\Items::fromString($json, $options);
 
         $index = 0;
         foreach ($parser as $item) {
           if ($index >= $offset && $index < ($offset + $limit)) {
-            $items[] = (array) $item;
+            $items[] = $item;
           }
           $index++;
 
