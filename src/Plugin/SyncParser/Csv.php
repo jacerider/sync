@@ -42,7 +42,7 @@ class Csv extends SyncParserBase {
       $csv = new \ParseCsv\Csv();
       $csv->heading = !empty($this->configuration['header']);
       $csv->delimiter = $this->configuration['delimiter'];
-      $csv->parse($data);
+      $csv->parse(trim($data));
       return $csv->data;
     }
 
