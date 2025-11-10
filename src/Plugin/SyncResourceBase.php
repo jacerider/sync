@@ -1315,6 +1315,9 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       if (function_exists('ksm')) {
         ksm($data->toArray());
       }
+      elseif (function_exists('dpm')) {
+        dpm($data->toArray());
+      }
       else {
         \Drupal::messenger()->addMessage('<pre>' . print_r($data->toArray(), TRUE) . '</pre>');
       }
