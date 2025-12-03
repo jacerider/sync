@@ -158,16 +158,7 @@ abstract class SyncResourceFileBase extends SyncResourceBase {
    * Process an existing file entity.
    */
   protected function processItemAsExistingFile(FileInterface $entity, SyncDataItem $item) {
-    $uri = $entity->getFileUri();
-
-    /** @var \Drupal\Core\File\FileSystemInterface $fs */
-    $fs = \Drupal::service('file_system');
-    $directory = $fs->dirname($uri);
-
-    // Ensure the directory exists and is writable.
-    $fs->prepareDirectory($directory, FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS);
-
-    file_put_contents($uri, $item['contents']);
+    file_put_contents($entity->getFileUri(), $item['contents']);
     $this->renameFile($entity, $item);
   }
 
