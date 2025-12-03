@@ -101,16 +101,6 @@ abstract class SyncResourceFileBase extends SyncResourceBase {
       $this->processItemAsNewFile($entity, $item);
     }
     else {
-      $uri = $entity->getFileUri();
-
-      /** @var \Drupal\Core\File\FileSystemInterface $fs */
-      $fs = \Drupal::service('file_system');
-      $directory = $fs->dirname($uri);
-
-      // Ensure the directory exists and is writable.
-      $fs->prepareDirectory($directory, FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS);
-
-      file_put_contents($uri, $item['contents']);
       $this->processItemAsExistingFile($entity, $item);
     }
   }
@@ -124,7 +114,7 @@ abstract class SyncResourceFileBase extends SyncResourceBase {
     $destination = $directory . '/' . $filename;
     /** @var \Drupal\Core\File\FileSystemInterface $file_system */
     $file_system = \Drupal::service('file_system');
-    $file_system->prepareDirectory($directory, FileSystemInterface::CREATE_DIRECTORY);
+    $file_system->prepareDirectory($directory, FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS);
     $replace = $this->getReplaceBehavior($item);
     $uri = $file_system->saveData($item['contents'], $destination, $replace);
     $entity->setOwnerId(0);
@@ -158,7 +148,12 @@ abstract class SyncResourceFileBase extends SyncResourceBase {
    * Process an existing file entity.
    */
   protected function processItemAsExistingFile(FileInterface $entity, SyncDataItem $item) {
-    file_put_contents($entity->getFileUri(), $item['contents']);
+    $directory = $this->getDirectory($item);
+    $uri = $entity->getFileUri();
+    /** @var \Drupal\Core\File\FileSystemInterface $file_system */
+    $file_system = \Drupal::service('file_system');
+    $file_system->prepareDirectory($directory, FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS);
+    file_put_contents($uri, $item['contents']);
     $this->renameFile($entity, $item);
   }
 
