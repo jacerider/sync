@@ -15,6 +15,11 @@ class OdataV4 extends Http {
   /**
    * {@inheritdoc}
    */
+  protected $handlesPagination = TRUE;
+
+  /**
+   * {@inheritdoc}
+   */
   protected function defaultSettings() {
     return [
       'page_enabled' => TRUE,

@@ -18,6 +18,11 @@ class EntityQuery extends SyncFetcherBase {
   /**
    * {@inheritdoc}
    */
+  protected $handlesPagination = TRUE;
+
+  /**
+   * {@inheritdoc}
+   */
   protected function defaultSettings() {
     return [
       'page_enabled' => TRUE,

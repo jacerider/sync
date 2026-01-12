@@ -37,17 +37,19 @@ class Json extends SyncParserBase {
    */
   protected function parse($data, SyncFetcherInterface $fetcher) {
     $base_key = $this->configuration['base_key'];
-    $page_size = $fetcher->getPageSize();
+    if (!$fetcher->handlesPagination()) {
+      $page_size = $fetcher->getPageSize();
 
-    // If pagination is enabled, use streaming to avoid loading everything.
-    if ($page_size) {
-      $fetcher->setPageEnabled(TRUE);
-      $max = $page_size * $fetcher->getPageNumber();
-      $min = $max - $page_size;
+      // If pagination is enabled, use streaming to avoid loading everything.
+      if ($page_size) {
+        $fetcher->setPageEnabled(TRUE);
+        $max = $page_size * $fetcher->getPageNumber();
+        $min = $max - $page_size;
 
-      // Stream parse only the slice we need.
-      $result = $this->streamParseSlice($data, $base_key, $min, $page_size);
-      return $result;
+        // Stream parse only the slice we need.
+        $result = $this->streamParseSlice($data, $base_key, $min, $page_size);
+        return $result;
+      }
     }
 
     $decoded = json_decode($data, TRUE) ?: [];

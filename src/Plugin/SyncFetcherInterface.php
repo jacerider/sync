@@ -51,6 +51,14 @@ interface SyncFetcherInterface extends PluginInspectionInterface {
   public function setSettings(array $settings);
 
   /**
+   * Check if fetcher handles its own pagination.
+   *
+   * @return bool
+   *   TRUE if fetcher handles its own pagination.
+   */
+  public function handlesPagination();
+
+  /**
    * Set paging status.
    *
    * @param bool $status

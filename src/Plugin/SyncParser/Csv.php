@@ -61,17 +61,19 @@ class Csv extends SyncParserBase {
     $csv = array_map(function ($row) {
       return str_getcsv($row, $this->configuration['delimiter']);
     }, $rows);
-    $page_size = $fetcher->getPageSize();
-    if ($page_size) {
-      $fetcher->setPageEnabled(TRUE);
-      if ($use_header) {
-        $header = array_shift($csv);
-      }
-      $max = $page_size * $fetcher->getPageNumber();
-      $min = $max - $page_size;
-      $csv = array_slice($csv, $min, $page_size);
-      if ($use_header) {
-        $csv = array_merge([$header], $csv);
+    if (!$fetcher->handlesPagination()) {
+      $page_size = $fetcher->getPageSize();
+      if ($page_size) {
+        $fetcher->setPageEnabled(TRUE);
+        if ($use_header) {
+          $header = array_shift($csv);
+        }
+        $max = $page_size * $fetcher->getPageNumber();
+        $min = $max - $page_size;
+        $csv = array_slice($csv, $min, $page_size);
+        if ($use_header) {
+          $csv = array_merge([$header], $csv);
+        }
       }
     }
     if ($use_header) {

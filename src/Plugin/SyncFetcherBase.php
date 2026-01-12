@@ -27,6 +27,13 @@ abstract class SyncFetcherBase extends PluginBase implements SyncFetcherInterfac
   protected $pageNumber;
 
   /**
+   * Indicates whether the fetcher handles its own pagination.
+   *
+   * @var bool
+   */
+  protected $handlesPagination = FALSE;
+
+  /**
    * Constructs a SyncResource object.
    *
    * @param array $configuration
@@ -114,6 +121,13 @@ abstract class SyncFetcherBase extends PluginBase implements SyncFetcherInterfac
   public function setSettings(array $settings) {
     $this->configuration = $settings;
     return $this;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function handlesPagination() {
+    return (bool) $this->handlesPagination;
   }
 
   /**

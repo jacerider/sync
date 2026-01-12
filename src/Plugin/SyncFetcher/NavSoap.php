@@ -15,6 +15,11 @@ use Drupal\sync\Plugin\SyncDataItems;
 class NavSoap extends Soap {
 
   /**
+   * {@inheritdoc}
+   */
+  protected $handlesPagination = TRUE;
+
+  /**
    * The bookmark key value.
    *
    * @var string
