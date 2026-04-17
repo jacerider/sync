@@ -1539,7 +1539,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
     if ($log_to_messages && !empty($context['%sync_as_batch'])) {
       \Drupal::messenger()->addMessage(new FormattableMarkup($message, $context), $message_level);
     }
-    if ($log_to_drush) {
+    if ($log_to_drush && !$log_to_db) {
       $this->cliLog(new FormattableMarkup($message, $context), [], $level);
     }
   }
@@ -1573,7 +1573,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
           break;
       }
       $message = strip_tags(sprintf($color, dt($string, $args)));
-      fwrite(STDOUT, $message . "\n");
+      fwrite(STDERR, $message . "\n");
     }
   }
 
