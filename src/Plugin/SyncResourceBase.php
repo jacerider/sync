@@ -1501,21 +1501,18 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
         $message_level = 'error';
         $log_to_db = TRUE;
         $log_to_messages = TRUE;
-        $log_to_drush = TRUE;
         break;
 
       case LogLevel::WARNING:
         $message_level = 'warning';
         $log_to_db = TRUE;
         $log_to_messages = TRUE;
-        $log_to_drush = TRUE;
         break;
 
       case LogLevel::NOTICE:
         $message_level = 'status';
         $log_to_db = TRUE;
         $log_to_messages = TRUE;
-        $log_to_drush = TRUE;
         break;
 
       case LogLevel::INFO:
@@ -1539,7 +1536,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
     if ($log_to_messages && !empty($context['%sync_as_batch'])) {
       \Drupal::messenger()->addMessage(new FormattableMarkup($message, $context), $message_level);
     }
-    if ($log_to_drush && !$log_to_db) {
+    if ($log_to_drush) {
       $this->cliLog(new FormattableMarkup($message, $context), [], $level);
     }
   }
