@@ -32,11 +32,12 @@ class Csv extends SyncParserBase {
   protected function parse($data, SyncFetcherInterface $fetcher) {
     // To use, composer require parsecsv/php-parsecsv.
     if (class_exists('\ParseCsv\Csv')) {
-      if (mb_detect_encoding((string) $data, 'UTF-8', TRUE) && class_exists('\UConverter')) {
-        // Attempt to resolve issue when CSV files is incorrectly encoded as
-        // UTF-8.
+      // If the data is not valid UTF-8, assume it's Windows-1252 (the common
+      // source of mislabeled CSV exports — also a superset of ISO-8859-1) and
+      // transcode to UTF-8 so curly quotes, em-dashes, etc. survive.
+      if (!mb_detect_encoding((string) $data, 'UTF-8', TRUE) && class_exists('\UConverter')) {
         // phpcs:ignore
-        $data = \UConverter::transcode($data, 'ISO-8859-1', 'UTF8', ['to_subst' => '?']);
+        $data = \UConverter::transcode($data, 'UTF8', 'Windows-1252');
       }
       // phpcs:ignore
       $csv = new \ParseCsv\Csv();
