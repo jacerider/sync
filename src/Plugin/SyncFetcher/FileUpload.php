@@ -95,9 +95,13 @@ class FileUpload extends SyncFetcherBase implements SyncFetcherFormInterface {
    */
   public function buildForm(array $form, FormStateInterface $form_state, SyncResourceInterface $resource) {
     $max_filesize = Environment::getUploadMaxSize();
+    $extensions = $this->configuration['extentions'];
+    if (is_array($extensions)) {
+      $extensions = implode(' ', $extensions);
+    }
     $validators = [
-      'file_validate_extensions' => $this->configuration['extentions'],
-      'file_validate_size' => [$max_filesize],
+      'FileExtension' => ['extensions' => $extensions],
+      'FileSizeLimit' => ['fileLimit' => $max_filesize],
     ];
     $form['file'] = [
       '#type' => 'managed_file',
