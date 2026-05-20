@@ -15,7 +15,7 @@ use Drupal\sync\SyncJobQueueReleaseException;
  * @QueueWorker(
  *   id = "sync",
  *   title = @Translation("Sync"),
- *   cron = {"time" = 180}
+ *   cron = {"time" = 30}
  * )
  */
 class Sync extends QueueWorkerBase implements ContainerFactoryPluginInterface {

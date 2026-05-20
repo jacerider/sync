@@ -135,13 +135,16 @@ function sync_form_alter(&$form, FormStateInterface $form_state, $form_id) {
  * Implements hook_queue_info_alter().
  */
 function sync_queue_info_alter(&$definitions) {
-  $cron_time = (int) \Drupal::config('sync.settings')->get('queue_cron_time') ?: 30;
   foreach (\Drupal::service('plugin.manager.sync_resource')->getDefinitions() as $key => $definition) {
     $definitions['sync_' . $key] = [
       'id' => 'sync_' . $key,
       'title' => $definition['label'],
       'cron' => [
-        'time' => $cron_time,
+        // Bounds the per-queue processing budget so the inline-cron fallback
+        // in SyncSubscriber (used when exec() is disabled or drush isn't
+        // available) can't park an FPM worker for too long. The primary
+        // exec-background path runs in CLI and isn't affected by this value.
+        'time' => 30,
       ],
       'class' => 'Drupal\sync\Plugin\QueueWorker\Sync',
       'provider' => 'sync',
