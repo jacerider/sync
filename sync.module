@@ -135,12 +135,13 @@ function sync_form_alter(&$form, FormStateInterface $form_state, $form_id) {
  * Implements hook_queue_info_alter().
  */
 function sync_queue_info_alter(&$definitions) {
+  $cron_time = (int) \Drupal::config('sync.settings')->get('queue_cron_time') ?: 30;
   foreach (\Drupal::service('plugin.manager.sync_resource')->getDefinitions() as $key => $definition) {
     $definitions['sync_' . $key] = [
       'id' => 'sync_' . $key,
       'title' => $definition['label'],
       'cron' => [
-        'time' => 180,
+        'time' => $cron_time,
       ],
       'class' => 'Drupal\sync\Plugin\QueueWorker\Sync',
       'provider' => 'sync',
