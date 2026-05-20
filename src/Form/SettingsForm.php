@@ -46,8 +46,8 @@ class SettingsForm extends ConfigFormBase {
       '#type' => 'number',
       '#title' => t('Queue cron time (seconds)'),
       '#description' => t('Maximum seconds each sync queue may run per cron invocation. Amount set is how long phpfpm workers are occupied. If phpfpm workers are exceeded for a server, requests will queue until a worker is free, causing site speed to decline/fail.'),
-      '#default_value' => $config->get('queue_cron_time'),
-      '#min' => 0,
+      '#default_value' => $config->get('queue_cron_time') ?? 30,
+      '#min' => 1,
     ];
     return parent::buildForm($form, $form_state);
   }
