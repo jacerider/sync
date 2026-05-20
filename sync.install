@@ -115,3 +115,13 @@ function sync_update_8002() {
     ], []);
   }
 }
+
+/**
+ * Set the default queue cron time on existing sites.
+ */
+function sync_update_8003() {
+  $config = \Drupal::configFactory()->getEditable('sync.settings');
+  if ($config->get('queue_cron_time') === NULL) {
+    $config->set('queue_cron_time', 30)->save();
+  }
+}
