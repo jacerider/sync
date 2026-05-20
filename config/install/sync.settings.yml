@@ -1,3 +1,2 @@
 log_verbose: FALSE
 email_fail: NULL
-queue_cron_time: 30
