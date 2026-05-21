@@ -42,13 +42,6 @@ class SettingsForm extends ConfigFormBase {
       '#title' => t('Verbose Logging'),
       '#default_value' => $config->get('log_verbose'),
     ];
-    $form['queue_cron_time'] = [
-      '#type' => 'number',
-      '#title' => t('Queue cron time (seconds)'),
-      '#description' => t('Maximum seconds each sync queue may run per cron invocation. Amount set is how long phpfpm workers are occupied. If phpfpm workers are exceeded for a server, requests will queue until a worker is free, causing site speed to decline/fail.'),
-      '#default_value' => $config->get('queue_cron_time') ?? 30,
-      '#min' => 1,
-    ];
     return parent::buildForm($form, $form_state);
   }
 
@@ -61,7 +54,6 @@ class SettingsForm extends ConfigFormBase {
     $this->config('sync.settings')
       ->set('email_fail', $values['email_fail'])
       ->set('log_verbose', $values['log_verbose'])
-      ->set('queue_cron_time', (int) $values['queue_cron_time'])
       ->save();
   }
 
