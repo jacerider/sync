@@ -8,9 +8,6 @@ sync.settings:
     email_fail:
       type: string
       label: Email on Fail
-    queue_cron_time:
-      type: integer
-      label: Queue cron time
 
 field.widget.settings.sync_readonly:
   type: mapping
