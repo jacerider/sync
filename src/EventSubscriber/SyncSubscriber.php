@@ -63,7 +63,13 @@ class SyncSubscriber implements EventSubscriberInterface {
         $this->appRoot . '/vendor/bin/drush',
       ] as $drush) {
         if (is_executable($drush)) {
-          exec(escapeshellarg($drush) . ' cron > /dev/null 2>&1 &');
+          // setsid puts the child in its own session/process group so it
+          // survives the FPM worker exiting. Without it, hosts like Pantheon
+          // tear down the child when the parent worker is recycled. Guarded
+          // because setsid (from util-linux) isn't guaranteed on every host.
+          // Redirecting stdin from /dev/null ensures PHP doesn't wait on it.
+          $prefix = is_executable('/usr/bin/setsid') ? '/usr/bin/setsid ' : '';
+          exec($prefix . escapeshellarg($drush) . ' cron > /dev/null 2>&1 < /dev/null &');
           return;
         }
       }
