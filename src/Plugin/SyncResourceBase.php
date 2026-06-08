@@ -1492,7 +1492,14 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       if (is_array($value)) {
         $value = json_encode($value);
       }
+      // Coerce NULL placeholder values to an empty string. FormattableMarkup
+      // runs each value through Html::escape(), which throws a TypeError on NULL
+      // in PHP 8.1+ — a secondary crash that masks the error being logged.
+      elseif ($value === NULL) {
+        $value = '';
+      }
     }
+    unset($value);
     switch ($level) {
       case LogLevel::EMERGENCY:
       case LogLevel::ALERT:
