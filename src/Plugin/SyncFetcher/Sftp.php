@@ -73,7 +73,6 @@ class Sftp extends SyncFetcherBase {
       \Drupal::messenger()->addError($message);
       throw new \Exception($message);
     }
-
     return $data;
   }
 
