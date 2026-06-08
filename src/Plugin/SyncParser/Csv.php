@@ -30,6 +30,15 @@ class Csv extends SyncParserBase {
    * {@inheritdoc}
    */
   protected function parse($data, SyncFetcherInterface $fetcher) {
+    // Strip a leading UTF-8 BOM. Left in place it becomes part of the first
+    // column's header (e.g. "\xEF\xBB\xBFPLU" instead of "PLU"), so every later
+    // lookup by that header name silently returns NULL. Match the raw bytes
+    // rather than using the /u modifier: this runs before the Windows-1252
+    // transcode below, so $data may not be valid UTF-8 yet, and /u would make
+    // preg_replace() return NULL on malformed input.
+    if (substr((string) $data, 0, 3) === "\xEF\xBB\xBF") {
+      $data = substr((string) $data, 3);
+    }
     // To use, composer require parsecsv/php-parsecsv.
     if (class_exists('\ParseCsv\Csv')) {
       // If the data is not valid UTF-8, assume it's Windows-1252 (the common
