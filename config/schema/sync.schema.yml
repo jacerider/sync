@@ -8,6 +8,15 @@ sync.settings:
     email_fail:
       type: string
       label: Email on Fail
+    cron_queue:
+      type: boolean
+      label: Process sync queues during core cron
+    cron_build:
+      type: boolean
+      label: Build due sync runs during core cron
+    cron_queue_time:
+      type: integer
+      label: Seconds per sync queue during core cron
 
 field.widget.settings.sync_readonly:
   type: mapping

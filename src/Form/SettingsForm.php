@@ -42,6 +42,39 @@ class SettingsForm extends ConfigFormBase {
       '#title' => t('Verbose Logging'),
       '#default_value' => $config->get('log_verbose'),
     ];
+    $form['cron'] = [
+      '#type' => 'details',
+      '#title' => t('Cron'),
+      '#open' => $config->get('cron_queue') === FALSE || $config->get('cron_build') === FALSE,
+    ];
+    $form['cron']['intro'] = [
+      '#markup' => '<p>' . t('A sync happens in two stages. First it is <em>started</em>: the data is downloaded and every record is added to a work queue. Then that queue is <em>worked through</em>, a few records at a time, until it is empty. The two settings below control whether cron does each stage.') . '</p>'
+      . '<p>' . t('Leave both enabled unless something outside Drupal is running your syncs, such as a server cron job calling <code>drush sync:cron</code>. In that case turn both off, so that Drupal cron and the external job do not both try to run the same sync.') . '</p>',
+    ];
+    $form['cron']['cron_build'] = [
+      '#type' => 'checkbox',
+      '#title' => t('Let cron start scheduled syncs'),
+      '#description' => t('Each time cron runs, any sync whose scheduled day and time have passed is started. Turn this off if something else starts your syncs; if both do it, a second copy of a sync can be started while the first is still running.'),
+      '#default_value' => $config->get('cron_build') === NULL ? TRUE : $config->get('cron_build'),
+    ];
+    $form['cron']['cron_queue'] = [
+      '#type' => 'checkbox',
+      '#title' => t('Let cron work through the sync queue'),
+      '#description' => t('Each time cron runs, it spends a short time processing queued records. Turn this off if something else processes the queue; if both do it, they take records from each other and each one slows down.'),
+      '#default_value' => $config->get('cron_queue') === NULL ? TRUE : $config->get('cron_queue'),
+    ];
+    $form['cron']['cron_queue_time'] = [
+      '#type' => 'number',
+      '#title' => t('Seconds cron may spend on each sync'),
+      '#description' => t('How long cron works through a single sync queue before moving on. Records left over are picked up the next time cron runs. This caps how much a large sync can get done per day, so if a sync never finishes, run it with <code>drush sync:run</code> instead of raising this.'),
+      '#min' => 1,
+      '#default_value' => $config->get('cron_queue_time') ?: 30,
+      '#states' => [
+        'visible' => [
+          ':input[name="cron_queue"]' => ['checked' => TRUE],
+        ],
+      ],
+    ];
     return parent::buildForm($form, $form_state);
   }
 
@@ -54,7 +87,13 @@ class SettingsForm extends ConfigFormBase {
     $this->config('sync.settings')
       ->set('email_fail', $values['email_fail'])
       ->set('log_verbose', $values['log_verbose'])
+      ->set('cron_build', (bool) $values['cron_build'])
+      ->set('cron_queue', (bool) $values['cron_queue'])
+      ->set('cron_queue_time', (int) $values['cron_queue_time'])
       ->save();
+    // Queue worker definitions are built by hook_queue_info_alter() and cached
+    // in cache.discovery, so they have to be rebuilt for the change to apply.
+    \Drupal::service('plugin.manager.queue_worker')->clearCachedDefinitions();
   }
 
 }

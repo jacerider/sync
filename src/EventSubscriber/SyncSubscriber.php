@@ -69,12 +69,37 @@ class SyncSubscriber implements EventSubscriberInterface {
           // because setsid (from util-linux) isn't guaranteed on every host.
           // Redirecting stdin from /dev/null ensures PHP doesn't wait on it.
           $prefix = is_executable('/usr/bin/setsid') ? '/usr/bin/setsid ' : '';
-          exec($prefix . escapeshellarg($drush) . ' cron > /dev/null 2>&1 < /dev/null &');
+          exec($prefix . 'sh -c ' . escapeshellarg($this->buildCronCommand($drush)) . ' > /dev/null 2>&1 < /dev/null &');
           return;
         }
       }
     }
     $this->cron->run();
+  }
+
+  /**
+   * Build the command run in the background.
+   *
+   * Core cron is always run, because this endpoint is commonly a site's only
+   * cron trigger. When the site has opted out of processing sync queues during
+   * core cron, sync:cron is appended to pick them up instead: it drives the
+   * queues directly and so is not bound by the per-queue cron budget.
+   *
+   * @param string $drush
+   *   The path to the drush binary.
+   *
+   * @return string
+   *   The shell command.
+   */
+  protected function buildCronCommand($drush) {
+    $drush = escapeshellarg($drush);
+    $command = $drush . ' cron';
+    $config = \Drupal::config('sync.settings');
+    if ($config->get('cron_queue') === FALSE) {
+      $time_limit = (int) ($config->get('cron_queue_time') ?: 30);
+      $command .= '; ' . $drush . ' sync:cron --time-limit=' . escapeshellarg((string) $time_limit);
+    }
+    return $command;
   }
 
   /**
