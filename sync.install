@@ -79,6 +79,13 @@ function sync_schema() {
         'default' => 0,
         'description' => 'Unix timestamp of when the entity was last updated',
       ],
+      'hash' => [
+        'type' => 'varchar_ascii',
+        'length' => 64,
+        'not null' => FALSE,
+        'default' => NULL,
+        'description' => 'Fingerprint of the source record at the last successful sync. NULL means unknown, which always processes the record.',
+      ],
     ],
     'primary key' => ['id', 'segment'],
   ];
@@ -131,4 +138,42 @@ function sync_update_8004() {
   \Drupal::configFactory()->getEditable('sync.settings')
     ->clear('queue_cron_time')
     ->save();
+}
+
+/**
+ * Add the change-detection hash column to sync_data.
+ */
+function sync_update_8005() {
+  $schema = Database::getConnection()->schema();
+  if (!$schema->fieldExists('sync_data', 'hash')) {
+    $schema->addField('sync_data', 'hash', [
+      'type' => 'varchar_ascii',
+      'length' => 64,
+      'not null' => FALSE,
+      'default' => NULL,
+      'description' => 'Fingerprint of the source record at the last successful sync. NULL means unknown, which always processes the record.',
+    ]);
+  }
+}
+
+/**
+ * Add the settings that control what cron does with syncs.
+ */
+function sync_update_8006() {
+  $config = \Drupal::configFactory()->getEditable('sync.settings');
+  // Seed with the values that reproduce the previously hardcoded behavior.
+  foreach (['cron_build' => TRUE, 'cron_queue' => TRUE, 'cron_queue_time' => 30] as $key => $value) {
+    if ($config->get($key) === NULL) {
+      $config->set($key, $value);
+    }
+  }
+  // An earlier iteration of this update used queue_cron/queue_cron_time. Carry
+  // those values over and drop them so both namings cannot drift apart.
+  foreach (['queue_cron' => 'cron_queue', 'queue_cron_time' => 'cron_queue_time'] as $old => $new) {
+    if ($config->get($old) !== NULL) {
+      $config->set($new, $config->get($old))->clear($old);
+    }
+  }
+  $config->save();
+  \Drupal::service('plugin.manager.queue_worker')->clearCachedDefinitions();
 }

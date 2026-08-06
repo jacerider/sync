@@ -43,6 +43,14 @@ class SyncResourceManager extends DefaultPluginManager {
       // for resoruces that track last used to determine which data to run.
       'reset' => 0,
       'weight' => 0,
+      // If hash is 1, unchanged source records are skipped. Opt-in; see
+      // \Drupal\sync\Annotation\SyncResource::$hash.
+      'hash' => 0,
+      'hash_version' => 1,
+      'verify_entities' => 1,
+      // What to do when a run starts with jobs still queued. Defaults to the
+      // historical behavior.
+      'build_policy' => 'append',
     ];
   }
 

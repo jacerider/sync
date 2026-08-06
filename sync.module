@@ -36,6 +36,11 @@ function sync_help($route_name, RouteMatchInterface $route_match) {
  * Implements hook_cron().
  */
 function sync_cron() {
+  // Sites driving sync from a dedicated runner (drush sync:cron) turn this off
+  // so that core cron does not build a competing run.
+  if (\Drupal::config('sync.settings')->get('cron_build') === FALSE) {
+    return;
+  }
   $manager = \Drupal::service('plugin.manager.sync_resource');
   foreach ($manager->getForCron() as $instance) {
     /** @var \Drupal\sync\Plugin\SyncResourceInterface $instance */
@@ -135,20 +140,27 @@ function sync_form_alter(&$form, FormStateInterface $form_state, $form_id) {
  * Implements hook_queue_info_alter().
  */
 function sync_queue_info_alter(&$definitions) {
+  $config = \Drupal::config('sync.settings');
+  // Sites driving sync from a dedicated runner (drush sync:cron) set this to
+  // FALSE so core cron does not claim items out from under it. Omitting the
+  // 'cron' key entirely makes Cron::processQueues() skip the queue.
+  $cron_queue = $config->get('cron_queue');
+  $cron_queue = $cron_queue === NULL ? TRUE : (bool) $cron_queue;
+  // Bounds the per-queue processing budget so the inline-cron fallback in
+  // SyncSubscriber (used when exec() is disabled or drush isn't available)
+  // can't park an FPM worker for too long.
+  $cron_queue_time = (int) ($config->get('cron_queue_time') ?: 30);
   foreach (\Drupal::service('plugin.manager.sync_resource')->getDefinitions() as $key => $definition) {
-    $definitions['sync_' . $key] = [
+    $info = [
       'id' => 'sync_' . $key,
       'title' => $definition['label'],
-      'cron' => [
-        // Bounds the per-queue processing budget so the inline-cron fallback
-        // in SyncSubscriber (used when exec() is disabled or drush isn't
-        // available) can't park an FPM worker for too long. The primary
-        // exec-background path runs in CLI and isn't affected by this value.
-        'time' => 30,
-      ],
       'class' => 'Drupal\sync\Plugin\QueueWorker\Sync',
       'provider' => 'sync',
     ];
+    if ($cron_queue) {
+      $info['cron'] = ['time' => $cron_queue_time];
+    }
+    $definitions['sync_' . $key] = $info;
   }
 }
 

@@ -93,4 +93,60 @@ class SyncResource extends Plugin {
    */
   public $day = 'mon,tue,wed,thu,fri';
 
+  /**
+   * A boolean indicating if source records should be fingerprinted.
+   *
+   * When enabled, a hash of each source record is stored after a successful
+   * sync and compared on the next run. Records that have not changed are never
+   * queued, which skips the entity load and save entirely.
+   *
+   * This is opt-in because it requires the sync id returned by ::id() to be
+   * derivable from the raw source item alone. A resource that computes or
+   * normalizes its id inside ::prepareItem() would produce a different id at
+   * queue time than at process time and silently mismatch every record.
+   *
+   * @var bool
+   */
+  public $hash = FALSE;
+
+  /**
+   * A salt that invalidates every stored hash for this resource when changed.
+   *
+   * Bump this whenever ::processItem() changes what it writes, otherwise
+   * unchanged source records will be skipped and never pick up the new
+   * mapping. Set to "auto" to derive the salt from the resource class file, so
+   * any edit to the class invalidates the stored hashes automatically.
+   *
+   * Only used when $hash is TRUE.
+   *
+   * @var string|int
+   */
+  public $hash_version = 1;
+
+  /**
+   * A boolean indicating if a hash should be trusted only when its entity exists.
+   *
+   * Guards against deletions that bypassed hook_entity_delete(). Costs one
+   * extra indexed query per page.
+   *
+   * Only used when $hash is TRUE.
+   *
+   * @var bool
+   */
+  public $verify_entities = TRUE;
+
+  /**
+   * What to do when a new run starts while jobs are still queued.
+   *
+   * - 'append': leave the pending jobs in place and add the new run behind
+   *   them. This is the historical behavior and remains the default.
+   * - 'restart': discard the pending jobs and start clean. Correct for a full
+   *   snapshot feed, where yesterday's leftovers are stale by definition.
+   * - 'resume': skip building entirely and let the pending run finish first.
+   *   Correct for delta feeds, where every item matters.
+   *
+   * @var string
+   */
+  public $build_policy = 'append';
+
 }

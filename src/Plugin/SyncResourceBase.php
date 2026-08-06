@@ -149,6 +149,27 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
   protected $parser;
 
   /**
+   * The queue worker, built once and reused for the life of the instance.
+   *
+   * @var \Drupal\Core\Queue\QueueWorkerInterface
+   */
+  protected $queueWorker;
+
+  /**
+   * The queue item currently being processed, if any.
+   *
+   * @var object|null
+   */
+  protected $inFlightItem;
+
+  /**
+   * Whether the in-flight release handlers have been registered.
+   *
+   * @var bool
+   */
+  protected $inFlightRegistered = FALSE;
+
+  /**
    * Constructs a SyncResource object.
    *
    * @param array $configuration
@@ -287,6 +308,29 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
   }
 
   /**
+   * Get the name of the queue backing this resource.
+   *
+   * @return string
+   *   The queue name.
+   */
+  public function getQueueId() {
+    if (!isset($this->queueId)) {
+      $this->queueId = 'sync_' . $this->getPluginId();
+    }
+    return $this->queueId;
+  }
+
+  /**
+   * Get the queue backing this resource.
+   *
+   * @return \Drupal\Core\Queue\QueueInterface
+   *   The queue.
+   */
+  public function getQueue() {
+    return $this->queue;
+  }
+
+  /**
    * Determine if sync should run even if there are no results.
    */
   protected function shouldRunOnEmpty() {
@@ -310,6 +354,174 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
   public function usesReset() {
     $definition = $this->getPluginDefinition();
     return $definition['reset'] == TRUE;
+  }
+
+  /**
+   * Determine if sync skips source records that have not changed.
+   *
+   * @return bool
+   *   TRUE if change detection is enabled.
+   *
+   * @see \Drupal\sync\Annotation\SyncResource::$hash
+   */
+  public function usesChangeDetection() {
+    $definition = $this->getPluginDefinition();
+    return !empty($definition['hash']);
+  }
+
+  /**
+   * Determine if a stored hash requires its entity to still exist.
+   *
+   * @return bool
+   *   TRUE if entity existence should be verified.
+   */
+  protected function verifiesEntities() {
+    $definition = $this->getPluginDefinition();
+    return !empty($definition['verify_entities']);
+  }
+
+  /**
+   * Get the salt mixed into every hash for this resource.
+   *
+   * Changing the returned value invalidates every stored hash, forcing a full
+   * re-sync on the next run.
+   *
+   * @return string
+   *   The hash version.
+   */
+  protected function getHashVersion() {
+    $definition = $this->getPluginDefinition();
+    $version = $definition['hash_version'] ?? 1;
+    if ($version === 'auto') {
+      // Derive the salt from the resource class file so that any edit to the
+      // mapping in ::processItem() invalidates the stored hashes without
+      // anyone having to remember to bump a number.
+      static $auto = [];
+      $class = static::class;
+      if (!isset($auto[$class])) {
+        try {
+          $file = (new \ReflectionClass($class))->getFileName();
+          $auto[$class] = $file ? substr(md5_file($file), 0, 12) : 'unknown';
+        }
+        catch (\ReflectionException $e) {
+          $auto[$class] = 'unknown';
+        }
+      }
+      return 'auto:' . $auto[$class];
+    }
+    return (string) $version;
+  }
+
+  /**
+   * The portion of a source record that participates in its fingerprint.
+   *
+   * Override to narrow this to the fields the resource actually maps, so that
+   * churn in unmapped source fields does not trigger a pointless re-save. The
+   * returned value must be stable across runs for an unchanged record: key
+   * order and the order of any nested lists both matter.
+   *
+   * @param \Drupal\sync\Plugin\SyncDataItem $item
+   *   The item about to be processed.
+   *
+   * @return array
+   *   The data to fingerprint.
+   */
+  protected function hashSource(SyncDataItem $item) {
+    return $item->toArray();
+  }
+
+  /**
+   * Build the fingerprint of a source record.
+   *
+   * @param \Drupal\sync\Plugin\SyncDataItem $item
+   *   The item about to be processed.
+   *
+   * @return string
+   *   The fingerprint.
+   */
+  protected function getItemHash(SyncDataItem $item) {
+    $data = $this->hashSource($item);
+    // SyncDataItems::setItems() stamps every item with its positional index,
+    // which differs on every page. It must never reach the fingerprint.
+    unset($data['_sync_key']);
+    $this->normalizeHashData($data);
+    return hash('xxh128', $this->getHashVersion() . '|' . json_encode($data));
+  }
+
+  /**
+   * Recursively sort data so that key order cannot affect the fingerprint.
+   *
+   * Only associative arrays are sorted. Lists keep their order, because for
+   * many sources the order of a list is itself meaningful; a resource whose
+   * source emits lists in an unstable order should sort them in ::hashSource().
+   *
+   * @param array $data
+   *   The data to normalize, by reference.
+   */
+  protected function normalizeHashData(array &$data) {
+    if (!array_is_list($data)) {
+      ksort($data);
+    }
+    foreach ($data as &$value) {
+      if (is_array($value)) {
+        $this->normalizeHashData($value);
+      }
+    }
+  }
+
+  /**
+   * Determine which of the given items are unchanged since the last sync.
+   *
+   * @param \Drupal\sync\Plugin\SyncDataItems $items
+   *   The items about to be queued.
+   * @param array $context
+   *   The run context.
+   *
+   * @return array
+   *   An array keyed by the item's _sync_key, each value being the sync id.
+   *   Empty when change detection is off or the run is forced.
+   */
+  protected function getUnchangedKeys(SyncDataItems $items, array $context = []) {
+    if (!$this->usesChangeDetection() || !empty($context['%force']) || !$items->hasItems()) {
+      return [];
+    }
+    // Map sync id => item keys, and remember each item's hash so it does not
+    // have to be recomputed.
+    $ids = [];
+    $hashes = [];
+    foreach ($items->items() as $item) {
+      try {
+        $id = $this->id($item);
+      }
+      catch (\Exception $e) {
+        // An id that cannot be derived here cannot be filtered here. Let the
+        // item through so doProcess() reports it exactly as it would have.
+        continue;
+      }
+      if ($id === NULL || $id === '') {
+        continue;
+      }
+      $ids[$id][] = $item->_sync_key;
+      $hashes[$id] = $this->getItemHash($item);
+    }
+    if (!$ids) {
+      return [];
+    }
+    $stored = $this->syncStorage->getHashes(
+      array_keys($ids),
+      $this->getGroup(),
+      $this->getEntityType(),
+      $this->verifiesEntities()
+    );
+    $unchanged = [];
+    foreach ($stored as $id => $hash) {
+      if (isset($hashes[$id]) && hash_equals($hash, $hashes[$id])) {
+        foreach ($ids[$id] as $key) {
+          $unchanged[$key] = $id;
+        }
+      }
+    }
+    return $unchanged;
   }
 
   /**
@@ -392,17 +604,49 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
   protected function alterItem(SyncDataItem $data) {}
 
   /**
+   * Called once, after every job for a run has finished.
+   *
+   * The doEnd() job re-queues itself while items remain, so it can run several
+   * times per sync. This hook fires only on the final pass, which makes it the
+   * right place for teardown that must not happen mid-run: archiving the
+   * source file, notifying a remote system, releasing a resource.
+   *
+   * @param array $context
+   *   The run context, including the %success, %skip, %fail and %unchanged
+   *   counts.
+   */
+  protected function onComplete(array $context) {}
+
+  /**
    * {@inheritdoc}
    */
   public function build(array $context = []) {
     $context += $this->getContext();
     $this->log(LogLevel::DEBUG, '%plugin_label: Start', $this->getContext());
-    if ($this->queue->numberOfItems() > 0) {
+    $pending = $this->queue->numberOfItems();
+    if ($pending > 0) {
+      $policy = $this->getBuildPolicy();
+      if ($policy === 'resume') {
+        // A run is still in flight and every one of its items matters. Leave
+        // it alone rather than layering another run on top.
+        $this->log(LogLevel::NOTICE, '%plugin_label: Build skipped, @count job(s) still pending.', $context + [
+          '@count' => $pending,
+        ]);
+        return $this;
+      }
+      if ($policy === 'restart') {
+        // A full snapshot supersedes whatever is left of the previous run.
+        $this->log(LogLevel::WARNING, '%plugin_label: Previous run did not complete, discarding @count pending job(s).', $context + [
+          '@count' => $pending,
+        ]);
+        $this->queue->deleteQueue();
+      }
       // When running as cron, we need to make sure any items still remaining in
       // the queue are processed before we start a new sync. We need to make
       // doEnd and doCleanup are removed as they will be added back in by the
       // new jobs.
-      if (!empty($context['%sync_as_cron'])) {
+      elseif (!empty($context['%sync_as_cron'])) {
+        $items = [];
         while ($item = $this->queue->claimItem()) {
           if (!in_array($item->data['op'], ['doEnd', 'doCleanup'])) {
             $items[] = $item;
@@ -420,8 +664,30 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       }
     }
     $this->setStartTime();
+    // queueData() fills this in as it runs, which is before doStart() is ever
+    // claimed, so it has to be cleared here rather than there.
+    $this->resetProcessCount('unchanged');
     $this->buildJobs($context);
     return $this;
+  }
+
+  /**
+   * Get the policy for starting a run while jobs are still queued.
+   *
+   * @return string
+   *   One of 'append', 'restart' or 'resume'.
+   *
+   * @see \Drupal\sync\Annotation\SyncResource::$build_policy
+   */
+  protected function getBuildPolicy() {
+    $definition = $this->getPluginDefinition();
+    $policy = $definition['build_policy'] ?? 'append';
+    // Cleanup and batch runs have always reset the queue; leave that to the
+    // existing branches rather than letting an explicit policy override it.
+    if ($this->usesCleanup() || !empty($this->itemContext['%sync_as_batch'])) {
+      return 'append';
+    }
+    return in_array($policy, ['append', 'restart', 'resume'], TRUE) ? $policy : 'append';
   }
 
   /**
@@ -491,13 +757,35 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
   protected function queueData(SyncDataItems $items, array $context = []) {
     $context = NestedArray::mergeDeep($this->getContext(), $context);
     $this->log(LogLevel::DEBUG, '%plugin_label: Add Job: Queue Data', $context);
+    // Records that have not changed since the last successful sync never reach
+    // the queue at all, which skips the entity load and save entirely. Returns
+    // an empty array unless the resource opts in.
+    $unchanged = $this->getUnchangedKeys($items, $context);
+    if ($unchanged) {
+      // Keep the skipped records looking current so that cleanup does not
+      // mistake them for stale and delete them.
+      $this->syncStorage->touch(array_values($unchanged), $this->getGroup());
+      $this->incrementProcessCount('unchanged', count($unchanged));
+      $this->log(LogLevel::DEBUG, '%plugin_label: Skipped @count unchanged item(s).', $context + [
+        '@count' => count($unchanged),
+      ]);
+    }
+    // These keys describe the run, not the item. Copying them onto every
+    // queued row would duplicate the fetcher configuration thousands of times.
+    $item_context = array_diff_key($context, array_flip([
+      '%fetcher_settings',
+      '%force',
+    ]));
     foreach ($items->items() as $item) {
+      if (isset($unchanged[$item->_sync_key])) {
+        continue;
+      }
       $this->queue->createItem([
         'plugin_id' => $this->getPluginId(),
         'op' => 'doProcess',
         'data' => [
           'item' => $item,
-          'context' => $context,
+          'context' => $item_context,
         ],
       ]);
     }
@@ -584,9 +872,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
    */
   public function runJobs() {
     $this->log(LogLevel::DEBUG, '%plugin_label: Run Jobs', $this->getContext());
-    while ($this->queue->numberOfItems() > 0) {
-      $this->runJob();
-    }
+    $this->drain();
     return $this;
   }
 
@@ -594,31 +880,194 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
    * {@inheritdoc}
    */
   public function runJob() {
-    /** @var \Drupal\Core\Queue\QueueWorkerInterface $queue_worker */
-    $queue_worker = \Drupal::service('plugin.manager.queue_worker')->createInstance('sync_' . $this->pluginId);
     $item = $this->queue->claimItem();
     if ($item) {
-      try {
-        $queue_worker->processItem($item->data);
-        $this->queue->deleteItem($item);
-      }
-      catch (SyncIgnoreException $e) {
-        $this->queue->deleteItem($item);
-      }
-      catch (SyncSkipException $e) {
-        $this->queue->deleteItem($item);
-      }
-      catch (SyncFailException $e) {
-        $this->queue->deleteItem($item);
-      }
-      catch (SyncJobQueueReleaseException $e) {
-        $this->queue->releaseItem($item);
-      }
-      catch (\Exception $e) {
-        $this->queue->deleteItem($item);
-      }
+      $this->processQueueItem($item);
     }
     return $this;
+  }
+
+  /**
+   * Drain the queue for this resource.
+   *
+   * Unlike core's cron queue runner this is not bounded by the per-queue cron
+   * time, so a caller can give it a budget that suits the job rather than the
+   * one that suits an inline web request.
+   *
+   * @param array $options
+   *   Supported keys:
+   *   - time_limit: seconds of wall clock to spend. 0 for unlimited.
+   *   - lease: seconds to lease each claimed item for.
+   *   - max_items: stop after this many items. 0 for unlimited.
+   *   - memory_limit: stop once memory usage exceeds this many bytes.
+   *   - reclaim: whether to reset expired leases before starting.
+   *
+   * @return array
+   *   An array with 'processed', 'remaining' and 'stopped' keys, where
+   *   'stopped' is one of empty, time, max_items or memory.
+   */
+  public function drain(array $options = []) {
+    $options += [
+      'time_limit' => 0,
+      'lease' => 120,
+      'max_items' => 0,
+      'memory_limit' => 0,
+      'reclaim' => TRUE,
+    ];
+    if (!empty($options['reclaim'])) {
+      $this->reclaimExpired();
+    }
+    $deadline = $options['time_limit'] > 0 ? microtime(TRUE) + $options['time_limit'] : NULL;
+    $processed = 0;
+    $stopped = 'empty';
+    $this->registerInFlightRelease();
+    while (TRUE) {
+      if ($deadline !== NULL && microtime(TRUE) >= $deadline) {
+        $stopped = 'time';
+        break;
+      }
+      if ($options['max_items'] > 0 && $processed >= $options['max_items']) {
+        $stopped = 'max_items';
+        break;
+      }
+      if ($options['memory_limit'] > 0 && memory_get_usage(TRUE) > $options['memory_limit']) {
+        $stopped = 'memory';
+        break;
+      }
+      // Claim drives the loop. Using numberOfItems() as the condition would
+      // add a COUNT() over the queue table for every single item.
+      $item = $this->queue->claimItem($options['lease']);
+      if (!$item) {
+        $stopped = 'empty';
+        break;
+      }
+      $this->processQueueItem($item);
+      $processed++;
+      if ($processed % 200 === 0) {
+        // Entity storage keeps a static cache of everything it has loaded.
+        $this->resetEntityCache();
+      }
+    }
+    $this->inFlightItem = NULL;
+    return [
+      'processed' => $processed,
+      'remaining' => (int) $this->queue->numberOfItems(),
+      'stopped' => $stopped,
+    ];
+  }
+
+  /**
+   * Hand a single claimed queue item to the worker and settle it.
+   *
+   * @param object $item
+   *   The claimed queue item.
+   */
+  protected function processQueueItem($item) {
+    $this->inFlightItem = $item;
+    try {
+      $this->getQueueWorker()->processItem($item->data);
+      $this->queue->deleteItem($item);
+    }
+    catch (SyncJobQueueReleaseException $e) {
+      // The job asked to be retried later.
+      $this->queue->releaseItem($item);
+    }
+    catch (SyncIgnoreException $e) {
+      $this->queue->deleteItem($item);
+    }
+    catch (SyncSkipException $e) {
+      $this->queue->deleteItem($item);
+    }
+    catch (SyncFailException $e) {
+      $this->queue->deleteItem($item);
+    }
+    catch (\Exception $e) {
+      $this->queue->deleteItem($item);
+    }
+    $this->inFlightItem = NULL;
+  }
+
+  /**
+   * Get the queue worker for this resource, built once per instance.
+   *
+   * @return \Drupal\Core\Queue\QueueWorkerInterface
+   *   The queue worker.
+   */
+  protected function getQueueWorker() {
+    if (!isset($this->queueWorker)) {
+      $this->queueWorker = \Drupal::service('plugin.manager.queue_worker')
+        ->createInstance('sync_' . $this->pluginId);
+    }
+    return $this->queueWorker;
+  }
+
+  /**
+   * Reset the static entity cache for this resource's entity type.
+   */
+  protected function resetEntityCache() {
+    $entity_type = $this->getEntityType();
+    if (!$entity_type) {
+      return;
+    }
+    try {
+      $this->entityTypeManager->getStorage($entity_type)->resetCache();
+    }
+    catch (\Exception $e) {
+      // Nothing to reset.
+    }
+  }
+
+  /**
+   * Release leases held by processes that are no longer running.
+   *
+   * DatabaseQueue only ever claims rows with expire = 0, and core resets
+   * expired rows from system_cron(). A runner that bypasses core cron has to
+   * do it itself, or a killed process leaves items stranded.
+   */
+  protected function reclaimExpired() {
+    // Scoped to this queue on purpose. DatabaseQueue::garbageCollection() is
+    // global and would disturb queues this runner knows nothing about.
+    \Drupal::database()->update('queue')
+      ->fields(['expire' => 0])
+      ->condition('name', $this->getQueueId())
+      ->condition('expire', 0, '<>')
+      ->condition('expire', \Drupal::time()->getCurrentTime(), '<')
+      ->execute();
+  }
+
+  /**
+   * Make sure an in-flight item is released if the process is torn down.
+   *
+   * Without this a SIGTERM mid-item leaves that item leased until it expires,
+   * which delays the next run for no reason.
+   */
+  protected function registerInFlightRelease() {
+    if ($this->inFlightRegistered) {
+      return;
+    }
+    $this->inFlightRegistered = TRUE;
+    $release = function () {
+      if ($this->inFlightItem) {
+        try {
+          $this->queue->releaseItem($this->inFlightItem);
+        }
+        catch (\Exception $e) {
+          // The database may already be gone during shutdown.
+        }
+        $this->inFlightItem = NULL;
+      }
+    };
+    register_shutdown_function($release);
+    if (function_exists('pcntl_signal') && function_exists('pcntl_async_signals')) {
+      pcntl_async_signals(TRUE);
+      foreach ([SIGTERM, SIGINT] as $signal) {
+        pcntl_signal($signal, function () use ($release, $signal) {
+          $release();
+          // Preserve the conventional exit status for a signal.
+          exit(128 + $signal);
+        });
+      }
+    }
   }
 
   /**
@@ -691,6 +1140,9 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
    */
   public function doStart(array $context) {
     $this->log(LogLevel::INFO, '%plugin_label: Run Job: Start', $context);
+    // The 'unchanged' counter is deliberately not reset here: it is filled in
+    // by queueData() during build(), which runs before this job is claimed.
+    // build() resets it instead.
     $this->resetProcessCount('success')
       ->resetProcessCount('skip')
       ->resetProcessCount('fail')
@@ -791,6 +1243,9 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
     $item = $data['item'];
     $context = $data['context'];
     try {
+      // Fingerprint before prepareItem() so the value matches the one computed
+      // at queue time, which also runs against the raw item.
+      $hash = $this->usesChangeDetection() ? $this->getItemHash($item) : NULL;
       $this->prepareItem($item);
       $id = $this->id($item);
       $context['%id'] = $id;
@@ -800,6 +1255,12 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
         if ($this->accessEntity($entity)) {
           $this->processItem($entity, $item);
           $success = $this->saveItem($entity, $item);
+          // Only record the fingerprint once the save has actually succeeded.
+          // Writing it from saveEntity() would also mark failed and skipped
+          // records as done, and they would never be retried.
+          if ($hash !== NULL) {
+            $this->syncStorage->saveHash($id, $hash, $this->getGroup());
+          }
           $context['%bundle'] = $entity->getEntityTypeId();
           $context['%entity_id'] = $entity->id();
           $this->incrementProcessCount('success');
@@ -1090,6 +1551,7 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       '%success' => $this->getProcessCount('success'),
       '%skip' => $this->getProcessCount('skip'),
       '%fail' => $this->getProcessCount('fail'),
+      '%unchanged' => $this->getProcessCount('unchanged'),
     ] + $context;
     if (!empty($context['%parent_plugin_id'])) {
       // We are processing this as part of a parent. We will reply on the parent
@@ -1104,11 +1566,21 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       }
       return;
     }
+    // The run is genuinely finished at this point: the queue is drained and no
+    // further pages will be fetched. Anything that must happen exactly once,
+    // and only on completion, belongs here.
+    $this->onComplete($context);
     $this->resetProcessCount('success')
       ->resetProcessCount('skip')
       ->resetProcessCount('fail')
+      ->resetProcessCount('unchanged')
       ->resetPageFailCount();
-    $this->log(LogLevel::NOTICE, '%plugin_label: Completed [Success: %success, Skip: %skip, Fail: %fail]', $context);
+    if ($this->usesChangeDetection()) {
+      $this->log(LogLevel::NOTICE, '%plugin_label: Completed [Success: %success, Skip: %skip, Fail: %fail, Unchanged: %unchanged]', $context);
+    }
+    else {
+      $this->log(LogLevel::NOTICE, '%plugin_label: Completed [Success: %success, Skip: %skip, Fail: %fail]', $context);
+    }
     $sync_resource_manager->setLastRunEnd($this->pluginDefinition);
     if (!empty($context['%fail'])) {
       $email_fail = $this->getErrorEmail();
@@ -1421,10 +1893,15 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
 
   /**
    * Increment the process count.
+   *
+   * @param string $type
+   *   The counter to increment.
+   * @param int $amount
+   *   How much to add. Allows a batch of items to be counted in one write.
    */
-  protected function incrementProcessCount($type = 'success') {
+  protected function incrementProcessCount($type = 'success', $amount = 1) {
     $count = $this->getProcessCount($type);
-    $this->state->set($this->getStateKey() . '.process.' . $type, $count + 1);
+    $this->state->set($this->getStateKey() . '.process.' . $type, $count + $amount);
     return $this;
   }
 
