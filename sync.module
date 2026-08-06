@@ -84,6 +84,50 @@ function sync_entity_update(EntityInterface $entity) {
 }
 
 /**
+ * Implements hook_entity_operation().
+ *
+ * Offers a Lock/Unlock operation on any entity sync tracks. Locking is how an
+ * entity that has been edited locally is protected from being overwritten by
+ * the next run.
+ */
+function sync_entity_operation(EntityInterface $entity) {
+  // Locking is opt-in. Both of these are far cheaper than the storage lookup,
+  // which would otherwise run for every row of every entity listing.
+  if (!\Drupal::config('sync.settings')->get('lock_enabled')) {
+    return [];
+  }
+  if (!\Drupal::currentUser()->hasPermission('sync lock')) {
+    return [];
+  }
+  if ($entity->isNew()) {
+    return [];
+  }
+  $records = \Drupal::service('sync.storage')->loadByEntity($entity);
+  if (!$records) {
+    return [];
+  }
+  $locked = FALSE;
+  foreach ($records as $record) {
+    if (!empty($record->locked)) {
+      $locked = TRUE;
+      break;
+    }
+  }
+  return [
+    'sync_lock' => [
+      'title' => $locked ? t('Unlock from sync') : t('Lock from sync'),
+      'weight' => 50,
+      'url' => Url::fromRoute('sync.entity_lock', [
+        'sync_entity_type' => $entity->getEntityTypeId(),
+        'sync_entity_id' => $entity->id(),
+      ], [
+        'query' => \Drupal::destination()->getAsArray(),
+      ]),
+    ],
+  ];
+}
+
+/**
  * Implements hook_field_widget_info_alter().
  */
 function sync_field_widget_info_alter(array &$info) {

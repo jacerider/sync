@@ -42,6 +42,18 @@ class SettingsForm extends ConfigFormBase {
       '#title' => t('Verbose Logging'),
       '#default_value' => $config->get('log_verbose'),
     ];
+    $locked = \Drupal::service('sync.storage')->countLocked();
+    $form['lock_enabled'] = [
+      '#type' => 'checkbox',
+      '#title' => t('Allow locking synced entities'),
+      '#description' => t('Adds a Lock action to entities that sync manages. A locked entity is never changed or deleted by a sync, so edits made here are kept. Only users with the "Lock and unlock synced entities" permission see it.'),
+      '#default_value' => (bool) $config->get('lock_enabled'),
+    ];
+    if ($locked) {
+      $form['lock_enabled']['#description'] .= ' ' . t('There @count currently locked.', [
+        '@count' => \Drupal::translation()->formatPlural($locked, 'is 1 entity', 'are @count entities'),
+      ]);
+    }
     $form['cron'] = [
       '#type' => 'details',
       '#title' => t('Cron'),
@@ -84,8 +96,21 @@ class SettingsForm extends ConfigFormBase {
   public function submitForm(array &$form, FormStateInterface $form_state) {
     parent::submitForm($form, $form_state);
     $values = $form_state->getValues();
+    // Turning locking off only hides the UI. Existing locks keep being
+    // honoured, so nothing quietly starts overwriting an entity someone
+    // deliberately protected - but there is then no way to clear them.
+    if (!$values['lock_enabled'] && $this->config('sync.settings')->get('lock_enabled')) {
+      $locked = \Drupal::service('sync.storage')->countLocked();
+      if ($locked) {
+        $this->messenger()->addWarning($this->formatPlural($locked,
+          '1 entity is still locked and will continue to be skipped by sync. Re-enable locking if you need to unlock it.',
+          '@count entities are still locked and will continue to be skipped by sync. Re-enable locking if you need to unlock them.'
+        ));
+      }
+    }
     $this->config('sync.settings')
       ->set('email_fail', $values['email_fail'])
+      ->set('lock_enabled', (bool) $values['lock_enabled'])
       ->set('log_verbose', $values['log_verbose'])
       ->set('cron_build', (bool) $values['cron_build'])
       ->set('cron_queue', (bool) $values['cron_queue'])

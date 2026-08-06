@@ -22,6 +22,11 @@ services:
     arguments: ['@plugin.manager.sync_resource']
     tags:
       - { name: access_check, applies_to: _sync_resource_access }
+  sync.lock_access:
+    class: Drupal\sync\SyncLockAccess
+    arguments: ['@config.factory']
+    tags:
+      - { name: access_check, applies_to: _sync_lock_enabled }
   sync.memory_cache:
     class: Drupal\Core\Cache\MemoryCache\MemoryCache
     arguments: ['@datetime.time']

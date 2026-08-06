@@ -14,5 +14,9 @@
   title: 'Allow sync debug'
 'sync view all':
   title: 'Allow viewing all the sync resources.'
+'sync lock':
+  title: 'Lock and unlock synced entities'
+  description: 'A locked entity is never updated or deleted by a sync, so local edits to it are preserved.'
+  restrict access: true
 permission_callbacks:
   - \Drupal\sync\SyncPermissions::permissions

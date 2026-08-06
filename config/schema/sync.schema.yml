@@ -8,6 +8,9 @@ sync.settings:
     email_fail:
       type: string
       label: Email on Fail
+    lock_enabled:
+      type: boolean
+      label: Allow locking synced entities
     cron_queue:
       type: boolean
       label: Process sync queues during core cron

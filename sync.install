@@ -177,3 +177,14 @@ function sync_update_8006() {
   $config->save();
   \Drupal::service('plugin.manager.queue_worker')->clearCachedDefinitions();
 }
+
+/**
+ * Add the setting that switches entity locking.
+ */
+function sync_update_8007() {
+  $config = \Drupal::configFactory()->getEditable('sync.settings');
+  if ($config->get('lock_enabled') === NULL) {
+    // Off by default. Existing sites see no new UI until they opt in.
+    $config->set('lock_enabled', FALSE)->save();
+  }
+}

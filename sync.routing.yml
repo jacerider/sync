@@ -36,6 +36,17 @@ sync.fetcher.form:
     # _permission: 'access sync overview'
   options:
     _admin_route: TRUE
+sync.entity_lock:
+  path: '/admin/sync/lock/{sync_entity_type}/{sync_entity_id}'
+  defaults:
+    _form: '\Drupal\sync\Form\SyncLockForm'
+    _title: 'Sync lock'
+  requirements:
+    _permission: 'sync lock'
+    _sync_lock_enabled: 'TRUE'
+  options:
+    _admin_route: TRUE
+
 sync.cron:
   path: '/sync-cron/{key}'
   defaults:

@@ -29,6 +29,7 @@ survives being interrupted.
 - [Settings](#settings)
 - [Permissions](#permissions)
 - [Database schema](#database-schema)
+- [Locking an entity](#locking-an-entity)
 - [Performance notes](#performance-notes)
 - [Upgrading](#upgrading)
 
@@ -500,6 +501,7 @@ At `/admin/sync/settings`.
 | --- | --- | --- |
 | `email_fail` | — | Address notified when a run reports failures. The message includes the failure log |
 | `log_verbose` | `false` | Write per-item log entries to watchdog. Leave off for large syncs |
+| `lock_enabled` | `false` | Whether the Lock/Unlock UI is available. See [Locking an entity](#locking-an-entity) |
 | `cron_build` | `true` | Whether cron starts syncs whose scheduled time has passed |
 | `cron_queue` | `true` | Whether cron works through the queued records |
 | `cron_queue_time` | `30` | Seconds cron may spend on each sync queue |
@@ -537,6 +539,7 @@ Changing these rebuilds the queue worker definitions, which are cached.
 | `sync reset` | Reset a resource's last-run timestamp |
 | `sync debug` | Use the debug output |
 | `sync view all` | View all resources |
+| `sync lock` | Lock and unlock synced entities (restricted) |
 
 A `sync run <resource_id>` permission is also generated for every resource, so
 access can be granted one resource at a time.
@@ -550,7 +553,7 @@ access can be granted one resource at a time.
 | `id` | The sync id. Primary key with `entity_type` |
 | `entity_type` | Primary key with `id` |
 | `entity_id` | The entity it produced |
-| `locked` | When `1`, the entity is never updated or cleaned by sync |
+| `locked` | When `1`, the entity is never updated or deleted by sync. See [Locking an entity](#locking-an-entity) |
 
 **`sync_data`** — per-run bookkeeping, segmented by sync group.
 
@@ -561,19 +564,69 @@ access can be granted one resource at a time.
 | `changed` | When the record was last seen. Drives cleanup |
 | `hash` | Source fingerprint. `NULL` means unknown, which always processes |
 
-### A note on `locked`
+## Locking an entity
 
-While a `sync` row has `locked = 1`, the entity is surfaced to
-`accessEntity()` as `$entity->syncIsLocked`, which makes the default
-implementation skip it, and `cleanupQueryAlter()` excludes it from cleanup.
+Sometimes a synced entity is edited locally and those edits have to survive.
+Locking it takes it out of sync's hands: the entity is never updated by a run,
+and cleanup will never delete it, until it is unlocked again.
 
-Be aware that the column is **not durable**: nothing in the module ever sets it,
-and every write back to the `sync` table resets it to `0`. Because skipping a
-locked entity itself writes back a sync record, a manually set lock survives
-only until the next run touches that record.
+**Locking is off by default.** Switch on *Allow locking synced entities* at
+`/admin/sync/settings` (`lock_enabled`) to expose it.
 
-To pin an entity permanently, override `accessEntity()` with your own condition
-rather than relying on the column:
+### From the UI
+
+Once enabled, any entity sync tracks gains a **Lock from sync** operation in its
+listing, for users with the *Lock and unlock synced entities* permission. The
+operation becomes **Unlock from sync** once locked, and both go through a
+confirmation step.
+
+### From code
+
+```php
+$sync_storage = \Drupal::service('sync.storage');
+
+// By entity, which covers every sync id pointing at it.
+$sync_storage->setEntityLocked($entity);
+$sync_storage->setEntityLocked($entity, FALSE);
+$records = $sync_storage->loadByEntity($entity);
+
+// Or by sync id and entity type.
+$sync_storage->setLocked($id, 'node');
+$sync_storage->isLocked($id, 'node');
+```
+
+### What a lock does
+
+- `SyncResourceBase::accessEntity()` returns FALSE, so `doProcess()` throws a
+  `SyncSkipException`, logs a warning naming the record, and counts a skip.
+- `cleanupQueryAlter()` excludes locked records, so cleanup will not delete it
+  even though the sync did not update it.
+- The sync record's `changed` timestamp is still refreshed, so the entity does
+  not drift into looking stale.
+- The stored change-detection hash is **not** advanced while the record is
+  locked. That matters: whatever changed at the source while the entity was
+  locked is still seen as a change once it is unlocked, so unlocking picks the
+  entity back up rather than leaving it permanently behind.
+- Locking is per sync record, not per resource. If several resources write to
+  the same entity, lock each one.
+
+A lock persists until it is explicitly cleared. A routine sync writing a record
+back leaves it untouched.
+
+### Turning the setting back off
+
+`lock_enabled` gates the **UI**, not enforcement. Any lock already set keeps
+being honoured after the setting is switched off, so disabling it cannot quietly
+start overwriting an entity someone deliberately protected. The trade-off is
+that those locks then have no UI to clear them — the settings form warns when
+you disable with locks still in place. Unlock first if you want them released,
+or call `setEntityLocked($entity, FALSE)` from code, which works regardless of
+the setting.
+
+### Locking on a condition instead
+
+For a rule rather than a manual decision — say, an entity flagged by an editor —
+override `accessEntity()`:
 
 ```php
 public function accessEntity(EntityInterface $entity) {
@@ -612,6 +665,8 @@ Run database updates after every update; several releases add schema or config.
   exactly as before.
 - **8006** seeds `cron_queue`, `cron_build` and `cron_queue_time` with the
   values that reproduce the previously hardcoded behaviour.
+- **8007** adds `lock_enabled`, off, so no site gains the locking UI without
+  asking for it.
 
 Change detection, `build_policy` and the new cron settings are all opt-in;
 defaults preserve existing behaviour.

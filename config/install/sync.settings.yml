@@ -1,5 +1,6 @@
 log_verbose: FALSE
 email_fail: NULL
+lock_enabled: FALSE
 cron_queue: TRUE
 cron_build: TRUE
 cron_queue_time: 30

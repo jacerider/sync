@@ -121,14 +121,22 @@ class SyncStorage implements SyncStorageInterface {
   /**
    * {@inheritdoc}
    */
-  public function save($id, EntityInterface $entity, $locked = FALSE, $group = 'default') {
-    $status = $this->database->merge('sync')
-      ->keys(['id' => $id, 'entity_type' => $entity->getEntityTypeId()])
-      ->fields([
-        'entity_id' => $entity->id(),
-        'locked' => $locked === TRUE ? 1 : 0,
-      ])
-      ->execute();
+  public function save($id, EntityInterface $entity, $locked = NULL, $group = 'default') {
+    $keys = ['id' => $id, 'entity_type' => $entity->getEntityTypeId()];
+    $fields = ['entity_id' => $entity->id()];
+    $merge = $this->database->merge('sync')->keys($keys);
+    if ($locked === NULL) {
+      // Recording a sync is not a statement about whether the entity is
+      // locked, so an existing lock is left alone. The keys are restated here
+      // because Merge::insertFields() replaces the array Merge::keys() filled
+      // in, rather than adding to it.
+      $merge->insertFields($keys + $fields + ['locked' => 0]);
+      $merge->updateFields($fields);
+    }
+    else {
+      $merge->fields($fields + ['locked' => $locked ? 1 : 0]);
+    }
+    $status = $merge->execute();
     if ($status) {
       $changed = \Drupal::time()->getRequestTime();
       $status = $this->database->merge('sync_data')
@@ -146,8 +154,67 @@ class SyncStorage implements SyncStorageInterface {
    */
   public function saveEntity(EntityInterface $entity) {
     if (isset($entity->__sync_id)) {
-      $this->save($entity->__sync_id, $entity, FALSE, $entity->__sync_group);
+      // NULL leaves any existing lock in place.
+      $this->save($entity->__sync_id, $entity, NULL, $entity->__sync_group);
     }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setLocked($id, $entity_type, $locked = TRUE) {
+    return $this->database->update('sync')
+      ->fields(['locked' => $locked ? 1 : 0])
+      ->condition('id', $id)
+      ->condition('entity_type', $entity_type)
+      ->execute();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function isLocked($id, $entity_type) {
+    return (bool) $this->database->select('sync', 's')
+      ->fields('s', ['locked'])
+      ->condition('s.id', $id)
+      ->condition('s.entity_type', $entity_type)
+      ->execute()
+      ->fetchField();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function countLocked() {
+    return (int) $this->database->select('sync', 's')
+      ->condition('s.locked', 1)
+      ->countQuery()
+      ->execute()
+      ->fetchField();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function loadByEntity(EntityInterface $entity) {
+    if ($entity->isNew()) {
+      return [];
+    }
+    return $this->loadByProperties([
+      'entity_type' => $entity->getEntityTypeId(),
+      'entity_id' => $entity->id(),
+    ]);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setEntityLocked(EntityInterface $entity, $locked = TRUE) {
+    $count = 0;
+    foreach ($this->loadByEntity($entity) as $id => $record) {
+      $count += (int) $this->setLocked($id, $record->entity_type, $locked);
+    }
+    return $count;
   }
 
   /**
