@@ -188,3 +188,16 @@ function sync_update_8007() {
     $config->set('lock_enabled', FALSE)->save();
   }
 }
+
+/**
+ * Add the address notified when the source data cannot be fetched.
+ */
+function sync_update_8008() {
+  $config = \Drupal::configFactory()->getEditable('sync.settings');
+  if ($config->get('email_fetch_fail') === NULL) {
+    // Deliberately not seeded from email_fail. Fetch failures were never
+    // reported before, so inheriting that address would start sending a new
+    // class of email to people who never asked for it.
+    $config->set('email_fetch_fail', NULL)->save();
+  }
+}

@@ -34,8 +34,14 @@ class SettingsForm extends ConfigFormBase {
     $form['email_fail'] = [
       '#type' => 'textfield',
       '#title' => t('Email Failure'),
-      '#description' => t('An email will be sent to the provided email addresses when a sync reports a failure.'),
+      '#description' => t('An email will be sent to the provided email addresses when a sync reports a failure. This covers a sync that ran but could not process some of its records.'),
       '#default_value' => $config->get('email_fail'),
+    ];
+    $form['email_fetch_fail'] = [
+      '#type' => 'textfield',
+      '#title' => t('Email Fetch Failure'),
+      '#description' => t('An email will be sent to the provided email addresses when the source data cannot be fetched, so the sync never starts or stops partway through. Nothing is queued in that case, so no records fail and the failure email above is never sent. Leave empty to send nothing; the failure is written to the log either way.'),
+      '#default_value' => $config->get('email_fetch_fail'),
     ];
     $form['log_verbose'] = [
       '#type' => 'checkbox',
@@ -110,6 +116,7 @@ class SettingsForm extends ConfigFormBase {
     }
     $this->config('sync.settings')
       ->set('email_fail', $values['email_fail'])
+      ->set('email_fetch_fail', $values['email_fetch_fail'])
       ->set('lock_enabled', (bool) $values['lock_enabled'])
       ->set('log_verbose', $values['log_verbose'])
       ->set('cron_build', (bool) $values['cron_build'])

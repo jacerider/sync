@@ -724,9 +724,11 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
     }
     catch (SyncFailException $e) {
       \Drupal::messenger()->addMessage($e->getMessage(), 'warning');
+      $this->notifyFetchFailure($e, $context);
     }
     catch (\Exception $e) {
       \Drupal::messenger()->addMessage($e->getMessage(), 'error');
+      $this->notifyFetchFailure($e, $context);
     }
   }
 
@@ -1411,6 +1413,9 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
       }
       $this->log(LogLevel::ERROR, '%plugin_label: Page %page Final Error: @error', $context);
       $this->resetPageFailCount();
+      // Every retry is spent and doEnd() was never queued, so the run stops
+      // here with whatever it managed to process. Nothing else reports this.
+      $this->notifyFetchFailure($e, $context, TRUE);
     }
   }
 
@@ -1627,6 +1632,84 @@ abstract class SyncResourceBase extends PluginBase implements SyncResourceInterf
    */
   protected function getErrorEmail() {
     return \Drupal::config('sync.settings')->get('email_fail');
+  }
+
+  /**
+   * Get the email notified when the source data cannot be fetched.
+   *
+   * Kept separate from getErrorEmail(). A fetch failure and a run that
+   * processed records but failed some of them are different problems, and
+   * often different people want to hear about them.
+   *
+   * @return string
+   *   The email address.
+   */
+  protected function getFetchErrorEmail() {
+    return \Drupal::config('sync.settings')->get('email_fetch_fail');
+  }
+
+  /**
+   * Report a failure to fetch the source data.
+   *
+   * A fetch failure never reaches doEnd(), so it produces no failure counts
+   * and never triggers the email sent by that method. Without this the run
+   * dies silently: buildJobs() and doPage() only push the exception through
+   * the messenger, which goes nowhere under cron or drush.
+   *
+   * @param \Exception $exception
+   *   The exception that ended the fetch.
+   * @param array $context
+   *   The run context.
+   * @param bool $started
+   *   TRUE when the run had already begun and stopped partway through, FALSE
+   *   when the initial fetch failed and nothing was queued at all.
+   */
+  protected function notifyFetchFailure(\Exception $exception, array $context, $started = FALSE) {
+    $context = NestedArray::mergeDeep($this->getContext(), $context);
+    $context['@error'] = $exception->getMessage();
+    // Log first and unconditionally. The record is worth having even when
+    // nobody is configured to be emailed about it.
+    if ($started) {
+      $this->log(LogLevel::ERROR, '%plugin_label: Fetch failed on page %page, sync stopped early: @error', $context);
+    }
+    else {
+      $this->log(LogLevel::ERROR, '%plugin_label: Fetch failed, sync did not start: @error', $context);
+    }
+
+    $email = $this->getFetchErrorEmail();
+    if (!$email) {
+      return;
+    }
+
+    /** @var \Drupal\Core\Mail\MailManagerInterface $mail_manager */
+    $mail_manager = \Drupal::service('plugin.manager.mail');
+    $langcode = \Drupal::currentUser()->getPreferredLangcode();
+    // Fetchers build their messages with FormattableMarkup, so the exception
+    // text arrives carrying <em class="placeholder"> wrappers. t() escapes
+    // those to entities, which strip_tags() can no longer remove, and the
+    // reader ends up looking at the markup. Flatten it before it goes in.
+    $message_context = [
+      '%plugin_id' => $context['%plugin_id'],
+      '%plugin_label' => $context['%plugin_label'],
+      '%page' => $context['%page'],
+      '@error' => strip_tags((string) $context['@error']),
+    ];
+    if ($started) {
+      $message[] = t('The %plugin_label sync could not fetch page %page of its source data and stopped before finishing. Records already processed were kept; the rest were not.', $message_context, ['langcode' => $langcode]);
+    }
+    else {
+      $message[] = t('The %plugin_label sync could not fetch its source data and did not start. No records were processed.', $message_context, ['langcode' => $langcode]);
+    }
+    $message[] = t('Error: @error', $message_context, ['langcode' => $langcode]);
+    $message[] = Url::fromRoute('sync.log', ['plugin_id' => $message_context['%plugin_id']])->setAbsolute(TRUE)->toString();
+
+    // A subject is a plain header, so it gets the label without the markup
+    // that the %placeholder style would wrap around it.
+    $message_context['%subject'] = t('Sync Fetch Failed: @plugin_label', [
+      '@plugin_label' => $message_context['%plugin_label'],
+    ], ['langcode' => $langcode]);
+    $message_context['%message'] = html_entity_decode(strip_tags(implode("\n\n", $message)), ENT_QUOTES | ENT_HTML5);
+    $mail_manager->mail('sync', 'fetch_fail', $email, $langcode, $message_context);
   }
 
   /**

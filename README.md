@@ -500,6 +500,7 @@ At `/admin/sync/settings`.
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `email_fail` | — | Address notified when a run reports failures. The message includes the failure log |
+| `email_fetch_fail` | — | Address notified when the source data cannot be fetched, so the run never starts or stops partway. See [When the fetch itself fails](#when-the-fetch-itself-fails) |
 | `log_verbose` | `false` | Write per-item log entries to watchdog. Leave off for large syncs |
 | `lock_enabled` | `false` | Whether the Lock/Unlock UI is available. See [Locking an entity](#locking-an-entity) |
 | `cron_build` | `true` | Whether cron starts syncs whose scheduled time has passed |
@@ -511,6 +512,25 @@ A sync happens in two stages, and the two booleans map onto them:
 1. **Started** — the data is fetched and every record is queued (`cron_build`).
 2. **Worked through** — the queue is processed a few records at a time until it
    is empty (`cron_queue`).
+
+### When the fetch itself fails
+
+The two failure addresses cover different problems and neither substitutes for
+the other.
+
+`email_fail` reports on a run that finished. Records were fetched, queued and
+processed, and some of them failed. The count comes from the end of the run, so
+there is a completed run to report on.
+
+`email_fetch_fail` reports on a run that could not get its data. Either the
+opening fetch threw, in which case nothing was queued and the sync never
+started, or a later page failed every retry and the run stopped partway with
+only some of its records processed. Neither case reaches the end of the run, so
+no failure count is ever produced and `email_fail` stays silent no matter what
+it is set to — which is why this is a separate setting.
+
+The failure is written to the log either way. Leaving `email_fetch_fail` empty
+only suppresses the email.
 
 ### Handing execution to an external scheduler
 
