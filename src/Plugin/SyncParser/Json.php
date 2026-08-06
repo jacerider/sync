@@ -4,6 +4,7 @@ namespace Drupal\sync\Plugin\SyncParser;
 
 use Drupal\sync\Plugin\SyncFetcherInterface;
 use Drupal\sync\Plugin\SyncParserBase;
+use Drupal\sync\SyncFailException;
 
 /**
  * Plugin implementation of the 'json' sync parser.
@@ -52,7 +53,13 @@ class Json extends SyncParserBase {
       }
     }
 
-    $decoded = json_decode($data, TRUE) ?: [];
+    $decoded = json_decode($data, TRUE);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+      // Returning an empty array here would look to the resource like a
+      // finished page, ending the run and reporting it as a success.
+      throw new SyncFailException('Unable to parse JSON response: ' . json_last_error_msg());
+    }
+    $decoded = $decoded ?: [];
     if (!empty($base_key) && isset($decoded[$base_key])) {
       $decoded = $decoded[$base_key];
     }
