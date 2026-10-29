@@ -105,14 +105,18 @@ class SyncStorage implements SyncStorageInterface {
       'id' => $id,
       'entity_type' => $entity_type,
     ]);
-    if (isset($data[$id])) {
-      $storage = $this->entityTypeManager->getStorage($data[$id]->entity_type);
+    // The id column is case-insensitive, so the row may be keyed by a stored
+    // id that differs from $id only in case ("1.jpg" vs "1.JPG"). Keying on
+    // $id missed it and created a duplicate entity on every sync. The primary
+    // key is (id, entity_type), so there is at most one row.
+    if ($row = reset($data)) {
+      $storage = $this->entityTypeManager->getStorage($row->entity_type);
       // Disable static cache to avoid consuming all the memory.
       $storage->getEntityType()->set('static_cache', FALSE);
-      $entity = $storage->load($data[$id]->entity_id);
+      $entity = $storage->load($row->entity_id);
       if ($entity) {
         // We temporarily store the locked state on the entity.
-        $entity->syncIsLocked = !empty($data[$id]->locked);
+        $entity->syncIsLocked = !empty($row->locked);
       }
     }
     return $entity;
